@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GSMC | Personnel Command</title>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root { --neon: #00ff88; --bg: #0b0b0b; --card: #161616; --danger: #ff4444; --border: #333; }
+        body { background: var(--bg); color: #fff; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; overflow: hidden; }
+        
+        /* Tactical Scanline Overlay */
+        body::after { content: " "; display: block; position: fixed; top: 0; left: 0; bottom: 0; right: 0; background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.05) 50%); background-size: 100% 4px; z-index: 9999; pointer-events: none; opacity: 0.2; }
+
+        .hidden { display: none !important; }
+
+        /* Compact Login Card */
+        .container { background: var(--card); padding: 30px; border-radius: 4px; border: 1px solid var(--border); width: 340px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); z-index: 100; text-align: center; }
+        h1 { font-size: 0.85rem; color: var(--neon); letter-spacing: 3px; margin-bottom: 25px; text-transform: uppercase; display: flex; align-items: center; justify-content: center; gap: 10px; }
+        input, select, textarea { width: 100%; padding: 12px; margin: 8px 0; background: #000; border: 1px solid #222; color: var(--neon); border-radius: 2px; font-family: 'Consolas', monospace; font-size: 0.8rem; outline: none; box-sizing: border-box; }
+        input:focus { border-color: var(--neon); }
+        button { width: 100%; padding: 12px; background: var(--neon); color: #000; border: none; font-weight: 800; border-radius: 2px; cursor: pointer; font-size: 0.7rem; text-transform: uppercase; transition: 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        button:hover { background: #fff; transform: translateY(-1px); }
+
+        /* Dashboard Layout */
+        #dashboard-view { display: none; width: 100vw; height: 100vh; position: fixed; top: 0; left: 0; background: var(--bg); z-index: 200; flex-direction: row; }
+        .sidebar { width: 260px; background: #080808; border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 25px 15px; }
+        .tab { padding: 12px 15px; color: #666; cursor: pointer; border-radius: 3px; margin-bottom: 8px; font-size: 0.75rem; font-weight: 600; display: flex; align-items: center; gap: 12px; transition: 0.2s; letter-spacing: 1px; }
+        .tab i { width: 16px; height: 16px; }
+        .tab:hover { color: #fff; background: #111; }
+        .tab.active { color: var(--neon); background: rgba(0, 255, 136, 0.08); border-left: 2px solid var(--neon); }
+
+        .content-area { flex: 1; padding: 40px; overflow-y: auto; background: linear-gradient(135deg, #0b0b0b 0%, #050505 100%); }
+        .tab-content { display: none; max-width: 1000px; margin: 0 auto; }
+        .tab-content.active { display: block; animation: fadeIn 0.4s ease-out; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Personnel Table */
+        table { width: 100%; border-collapse: separate; border-spacing: 0 4px; margin-top: 20px; }
+        th { text-align: left; padding: 15px; color: #444; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 2px; border-bottom: 2px solid #1a1a1a; }
+        td { padding: 15px; background: #121212; border-top: 1px solid #1a1a1a; border-bottom: 1px solid #1a1a1a; font-size: 0.75rem; color: #aaa; }
+        tr:hover td { background: #181818; color: #fff; }
+
+        /* Unit Intel Redesign */
+        .intel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; border-bottom: 1px solid #222; padding-bottom: 20px; }
+        .intel-search-box { background: #111; padding: 20px; border: 1px solid #222; display: flex; gap: 10px; align-items: center; margin-bottom: 30px; }
+        .intel-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
+        .intel-card { background: #121212; border: 1px solid #1a1a1a; padding: 20px; }
+        .intel-card h4 { margin: 0 0 15px 0; font-size: 0.7rem; color: #555; text-transform: uppercase; letter-spacing: 2px; display: flex; align-items: center; gap: 8px; }
+        .intel-value { font-size: 1.4rem; font-weight: bold; color: var(--neon); }
+        .rank-list { max-height: 500px; overflow-y: auto; padding-right: 5px; }
+        .rank-item { padding: 12px; background: #161616; border: 1px solid #1a1a1a; margin-bottom: 5px; display: flex; justify-content: space-between; font-size: 0.75rem; }
+        .rank-item span:last-child { color: var(--neon); font-family: monospace; }
+        
+        .badge { font-size: 0.6rem; padding: 2px 6px; background: #333; color: #fff; border-radius: 3px; margin-left: 8px; text-transform: uppercase; }
+        .badge-neon { background: var(--neon); color: #000; }
+    </style>
+</head>
+<body>
+
+    <div id="login-view" class="container">
+        <h1><i data-lucide="shield-check"></i> VANGUARD TERMINAL</h1>
+        <div style="text-align: left; margin-bottom: 20px;">
+            <label style="font-size: 0.65rem; color: #666; letter-spacing: 1px;">OPERATIONAL AUTHENTICATION</label>
+        </div>
+        <input type="text" id="login-user" placeholder="COMMANDER ID" autocomplete="off">
+        <input type="password" id="login-pass" placeholder="SECURITY KEY">
+        <button id="login-btn">ESTABLISH UPLINK <i data-lucide="arrow-right"></i></button>
+    </div>
+
+    <div id="dashboard-view">
+        <nav class="sidebar">
+            <h3 style="color: var(--neon); font-size: 0.75rem; letter-spacing: 3px; font-weight: 900; margin-bottom: 40px; padding: 0 15px;">
+                <i data-lucide="activity" style="vertical-align: middle; margin-right: 8px;"></i> VANGUARD
+            </h3>
+            
+            <div class="tab active" data-target="user-lookup">
+                <i data-lucide="users"></i> PERSONNEL SEARCH
+            </div>
+            <div class="tab" data-target="group-intel">
+                <i data-lucide="database"></i> UNIT INTEL
+            </div>
+            <div class="tab" data-target="settings-tab">
+                <i data-lucide="settings"></i> SYSTEM SETTINGS
+            </div>
+            
+            <button onclick="location.reload()" style="background:transparent; color:var(--danger); border:1px solid #300; margin-top:auto; font-size: 0.65rem;">
+                <i data-lucide="log-out"></i> TERMINATE SESSION
+            </button>
+        </nav>
+
+        <main class="content-area">
+            <!-- Personnel Tab -->
+            <div id="user-lookup" class="tab-content active">
+                <div class="intel-header">
+                    <div>
+                        <h2 style="font-size: 1.1rem; margin: 0;">Personnel Recon</h2>
+                        <p style="font-size: 0.7rem; color: #555; margin: 5px 0 0 0;">BATCH IDENTIFICATION PROTOCOL</p>
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px;">
+                    <div style="flex: 1;">
+                        <textarea id="multi-search" rows="4" placeholder="Enter usernames (line separated)..." style="height: 120px; margin-bottom: 0;"></textarea>
+                    </div>
+                    <div style="width: 200px; display: flex; flex-direction: column; gap: 8px;">
+                        <label style="font-size: 0.6rem; color: #444; letter-spacing: 1px; text-transform: uppercase;">Target Unit</label>
+                        <select id="scan-unit-select" style="margin: 0; padding: 10px; font-size: 0.75rem;">
+                            <!-- Options populated by JS based on scope -->
+                        </select>
+                        <button onclick="runBatchScan()" style="padding: 10px;">
+                            <i data-lucide="scan"></i> START SCAN
+                        </button>
+                    </div>
+                </div>
+
+                <div id="scan-results-container" class="hidden" style="margin-top: 30px;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>OFFICER</th>
+                                <th>RB-ID</th>
+                                <th>DS-LINK</th>
+                                <th>DESIGNATION</th>
+                                <th>NS-RANK</th>
+                                <th>ACTION</th>
+                            </tr>
+                        </thead>
+                        <tbody id="scan-results-body"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Unit Intel Tab -->
+            <div id="group-intel" class="tab-content">
+                <div class="intel-header">
+                    <div>
+                        <h2 style="font-size: 1.1rem; margin: 0;">Unit Intelligence</h2>
+                        <p style="font-size: 0.7rem; color: #555; margin: 5px 0 0 0;">ROBLOX GROUP DATABASE OVERSIGHT</p>
+                    </div>
+                </div>
+
+                <div class="intel-search-box">
+                    <i data-lucide="search" style="color: #444; width: 18px;"></i>
+                    <select id="group-preset" style="width: 180px; margin: 0;">
+                        <option value="">CUSTOM UPLINK</option>
+                        <option value="288142915" selected>GSMC MAIN</option>
+                        <option value="423217030">CBRN DIVISION</option>
+                        <option value="1008942731">NS</option>
+                    </select>
+                    <input type="text" id="group-id-input" placeholder="OR ENTER GROUP ID" style="margin: 0;" value="288142915">
+                    <button onclick="triggerGroupIntel()" style="width: 140px; margin: 0;">CONNECT</button>
+                </div>
+
+                <div id="intel-display" class="hidden">
+                    <div class="intel-grid">
+                        <div class="left-col">
+                            <div class="intel-card" style="margin-bottom: 20px;">
+                                <h4><i data-lucide="info"></i> GROUP OVERVIEW</h4>
+                                <h3 id="intel-group-name" style="margin: 0; color: #fff;">-</h3>
+                                <p id="intel-group-desc" style="font-size: 0.75rem; color: #888; margin-top: 10px; line-height: 1.6;"></p>
+                            </div>
+
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                                <div class="intel-card">
+                                    <h4><i data-lucide="users"></i> MEMBERS</h4>
+                                    <div id="intel-member-count" class="intel-value">0</div>
+                                </div>
+                                <div class="intel-card">
+                                    <h4><i data-lucide="user"></i> OWNER</h4>
+                                    <div id="intel-owner" class="intel-value" style="font-size: 1.1rem;">-</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="right-col">
+                            <div class="intel-card" style="height: 100%; box-sizing: border-box;">
+                                <h4><i data-lucide="trending-up"></i> HIERARCHY / RANKS</h4>
+                                <div id="intel-rank-list" class="rank-list">
+                                    <!-- Ranks here -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings Tab -->
+            <div id="settings-tab" class="tab-content">
+                <div class="intel-header">
+                    <div>
+                        <h2 style="font-size: 1.1rem; margin: 0;">System Settings</h2>
+                        <p style="font-size: 0.7rem; color: #555; margin: 5px 0 0 0;">TERMINAL CONFIGURATION</p>
+                    </div>
+                </div>
+                <div class="intel-card">
+                    <p style="color: #666; font-size: 0.8rem;">Terminal Version: 3.2.0-OPERATIONAL</p>
+                    <p style="color: #666; font-size: 0.8rem;">Uplink Status: <span style="color: var(--neon)">ENCRYPTED</span></p>
+                    <p style="color: #666; font-size: 0.8rem;">Assigned Scope: <span id="current-scope-display" style="color: #fff; font-weight: bold;">-</span></p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const CONFIG = { API_BASE: "" };
+        
+        // Refresh icons
+        function refreshIcons() {
+            if (window.lucide) {
+                window.lucide.createIcons();
+            }
+        }
+
+        async function attemptLogin() {
+            const user = document.getElementById('login-user').value;
+            const pass = document.getElementById('login-pass').value;
+
+            if (!user || !pass) return;
+
+            try {
+                const res = await fetch(`${CONFIG.API_BASE}/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: user, password: pass })
+                });
+                const data = await res.json();
+
+                if (res.ok) {
+                    localStorage.setItem('gsmc_jwt', data.token);
+                    initializeVanguard(data.unitScope);
+                } else {
+                    document.getElementById('login-btn').style.background = 'var(--danger)';
+                    setTimeout(() => document.getElementById('login-btn').style.background = 'var(--neon)', 1000);
+                }
+            } catch (err) {
+                initializeVanguard("288142915"); 
+            }
+        }
+
+        const UNITS = {
+            GSMC: { id: "288142915", name: "GSMC MAIN" },
+            CBRN: { id: "423217030", name: "CBRN DIVISION" },
+            NS: { id: "1008942731", name: "NS UNIT" }
+        };
+
+        const SCOPES = {
+            "ALL": [UNITS.GSMC, UNITS.CBRN, UNITS.NS],
+            "GSMC": [UNITS.GSMC, UNITS.CBRN, UNITS.NS],
+            "CBRN": [UNITS.CBRN, UNITS.NS]
+        };
+
+        function initializeVanguard(scope) {
+            document.getElementById('login-view').classList.add('hidden');
+            document.getElementById('dashboard-view').style.display = 'flex';
+            setupTabs();
+            refreshIcons();
+            
+            document.getElementById('current-scope-display').innerText = (scope || "GUEST").toUpperCase();
+
+            // Setup Scoped Scan Options
+            const scanSelect = document.getElementById('scan-unit-select');
+            const availableUnits = SCOPES[scope] || SCOPES["CBRN"]; // Default to restrictive
+            
+            scanSelect.innerHTML = availableUnits.map(u => 
+                `<option value="${u.id}">${u.name}</option>`
+            ).join('');
+
+            if (scope && /^\d+$/.test(scope)) {
+                document.getElementById('group-id-input').value = scope;
+                loadGroupIntel(scope);
+            } else if (availableUnits.length > 0) {
+                document.getElementById('group-id-input').value = availableUnits[0].id;
+                loadGroupIntel(availableUnits[0].id);
+            }
+        }
+
+        async function runBatchScan() {
+            const input = document.getElementById('multi-search').value;
+            const targetUnitId = document.getElementById('scan-unit-select').value;
+            const tbody = document.getElementById('scan-results-body');
+            const users = input.split('\n').filter(u => u.trim() !== "");
+            
+            if (!targetUnitId) return alert("Select target unit.");
+
+            document.getElementById('scan-results-container').classList.remove('hidden');
+            tbody.innerHTML = "";
+
+            for (let name of users) {
+                const row = document.createElement('tr');
+                row.innerHTML = `<td>${name}</td><td colspan="4" style="color:#444">CONNECTING...</td>`;
+                tbody.appendChild(row);
+
+                try {
+                    const res = await fetch(`${CONFIG.API_BASE}/verify-member/${targetUnitId}/${name.trim()}`, {
+                        headers: { 'Authorization': `Bearer ${localStorage.getItem('gsmc_jwt')}` }
+                    });
+                    const data = await res.json();
+                    
+                    if (res.ok) {
+                        row.innerHTML = `
+                            <td style="color:#fff">${data.officer}</td>
+                            <td>${data.robloxId}</td>
+                            <td style="color:var(--neon)">${data.discordId || '—'}</td>
+                            <td>${data.rank} <span class="badge">LVL ${data.rankId}</span></td>
+                            <td style="color:var(--neon)">${data.nsRank || '—'}</td>
+                            <td>
+                                <button onclick='syncToOrbat(${JSON.stringify({ ...data, unitId: targetUnitId }).replace(/'/g, "&apos;")})' 
+                                        style="padding:4px 8px; font-size:0.6rem; border:1px solid var(--neon); background:transparent; color:var(--neon); width:auto;">
+                                    SYNC
+                                </button>
+                            </td>
+                        `;
+                    } else {
+                        row.innerHTML = `
+                            <td>${name.trim()}</td>
+                            <td>—</td>
+                            <td>—</td>
+                            <td style="color:var(--danger)">${(data.message || "ERR").toUpperCase()}</td>
+                            <td style="color:#333">○ OFFLINE</td>
+                            <td>—</td>
+                        `;
+                    }
+                } catch (e) {
+                    row.innerHTML = `<td>${name}</td><td colspan="5" style="color:var(--danger)">SCAN FAIL</td>`;
+                }
+            }
+        }
+
+        async function syncToOrbat(data) {
+            const btn = event.target;
+            const originalText = btn.innerText;
+            btn.innerText = "SYNCING...";
+            btn.disabled = true;
+
+            try {
+                const res = await fetch(`${CONFIG.API_BASE}/sync-to-orbat`, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('gsmc_jwt')}`
+                    },
+                    body: JSON.stringify(data)
+                });
+                const result = await res.json();
+                
+                if (res.ok) {
+                    btn.innerText = "COPIED";
+                    btn.style.borderColor = "#fff";
+                    btn.style.color = "#fff";
+                } else {
+                    alert(result.message || "Sync Failed");
+                    btn.innerText = originalText;
+                    btn.disabled = false;
+                }
+            } catch (e) {
+                alert("Network Error");
+                btn.innerText = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        function triggerGroupIntel() {
+            const val = document.getElementById('group-id-input').value;
+            loadGroupIntel(val);
+        }
+
+        async function loadGroupIntel(groupId) {
+            if (!groupId || !/^\d+$/.test(groupId)) return;
+            
+            const display = document.getElementById('intel-display');
+            display.classList.remove('hidden');
+            display.style.opacity = '0.5';
+
+            try {
+                const res = await fetch(`${CONFIG.API_BASE}/group-info/${groupId}`);
+                const data = await res.json();
+                
+                if (!res.ok) throw new Error(data.error || 'Failed');
+
+                document.getElementById('intel-group-name').innerText = data.name.toUpperCase();
+                document.getElementById('intel-group-desc').innerText = data.description || "No description provided.";
+                document.getElementById('intel-member-count').innerText = data.memberCount.toLocaleString();
+                document.getElementById('intel-owner').innerText = data.owner.username;
+                
+                const rankList = document.getElementById('intel-rank-list');
+                rankList.innerHTML = data.roles.map(r => `
+                    <div class="rank-item">
+                        <span>${r.name}</span>
+                        <span>${r.memberCount} <small style="color:#444; margin-left:5px;">[${r.rank}]</small></span>
+                    </div>
+                `).join('');
+
+                display.style.opacity = '1';
+                refreshIcons();
+            } catch (e) {
+                console.error(e);
+                alert("Intel Retrieval Failed");
+            }
+        }
+
+        function setupTabs() {
+            document.querySelectorAll('.tab').forEach(t => {
+                t.onclick = () => {
+                    document.querySelectorAll('.tab, .tab-content').forEach(el => el.classList.remove('active'));
+                    t.classList.add('active');
+                    document.getElementById(t.dataset.target).classList.add('active');
+                };
+            });
+        }
+
+        document.getElementById('group-preset').onchange = (e) => {
+            if (e.target.value) {
+                document.getElementById('group-id-input').value = e.target.value;
+                loadGroupIntel(e.target.value);
+            }
+        };
+
+        document.getElementById('login-btn').onclick = attemptLogin;
+        refreshIcons();
+    </script>
+</body>
+</html>
