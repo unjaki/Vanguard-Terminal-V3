@@ -69,9 +69,8 @@ const getSheetsClient = () => {
 
 const groupCache = new Map();
 const intelCache = new Map(); // Cache for Deep Intel results
-const CACHE_TTL = 300000; // 5 minutes in ms
-
-const RBX_PROXY = "roproxy.org"; // Swapped back to roproxy.org for resolution stability
+const CACHE_TTL = 300000; // 5 minutes in m
+const RBX_PROXY = "https://proxy-lite--thanhapple1169.replit.app/"; // Swapped back to roproxy.org for resolution stability
 
 // 3. Webhook Logger Utility
 const requestWithRetry = async (url, options = {}, retries = 3, backoff = 2000) => {
