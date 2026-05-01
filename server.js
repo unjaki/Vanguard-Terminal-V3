@@ -68,39 +68,9 @@ const getSheetsClient = () => {
 };
 
 const groupCache = new Map();
-const intelCache = new Map(); // Cache for Deep Intel results
-const CACHE_TTL = 300000; // 5 minutes in m
-const RBX_PROXY = "https://proxy-lite--thanhapple1169.replit.app/"; // Swapped back to roproxy.org for resolution stability
+const CACHE_TTL = 300000; // 5 minutes in ms
 
 // 3. Webhook Logger Utility
-const requestWithRetry = async (url, options = {}, retries = 3, backoff = 2000) => {
-    const { method = 'GET', data = null, ...axiosOptions } = options;
-    for (let i = 0; i < retries; i++) {
-        try {
-            if (method === 'POST') {
-                return await axios.post(url, data, { ...axiosOptions, timeout: axiosOptions.timeout || 10000 });
-            }
-            return await axios.get(url, { ...axiosOptions, timeout: axiosOptions.timeout || 10000 });
-        } catch (err) {
-            const status = err.response ? err.response.status : null;
-            if (status === 404) throw err;
-            if (i === retries - 1) throw err;
-            
-            const isRateLimit = status === 429;
-            // Steep exponential backoff for 429 + random jitter to prevent collisions
-            const baseDelay = isRateLimit ? Math.pow(2, i) * 6000 : backoff * (i + 1);
-            const jitter = Math.random() * 2000;
-            const delay = baseDelay + jitter;
-            
-            console.warn(`[RETRY] ${url} failed (${method}, Attempt ${i+1}/${retries}). ${isRateLimit ? 'RATE LIMITED - Backing off...' : err.message}`);
-            await new Promise(res => setTimeout(res, delay));
-        }
-    }
-};
-
-const fetchWithRetry = (url, options = {}, retries = 3, backoff = 1000) => 
-    requestWithRetry(url, { ...options, method: 'GET' }, retries, backoff);
-
 const logAction = async (user, action, details, color = 3447003) => {
     try {
         if (!process.env.DISCORD_WEBHOOK_URL) return;
@@ -275,11 +245,11 @@ app.get('/group-info/:groupId', protectTier(2), async (req, res) => {
     try {
         console.log(`[INTEL] Fetching Roblox Data: ${groupId}`);
         // 1. Fetch main group metadata
-        const groupRes = await fetchWithRetry(`https://groups.${RBX_PROXY}/v1/groups/${groupId}`);
+        const groupRes = await axios.get(`https://groups.roblox.com/v1/groups/${groupId}`, { timeout: 5000 });
         const data = groupRes.data;
 
         // 2. Fetch roles (ranks)
-        const rolesRes = await fetchWithRetry(`https://groups.${RBX_PROXY}/v1/groups/${groupId}/roles`);
+        const rolesRes = await axios.get(`https://groups.roblox.com/v1/groups/${groupId}/roles`, { timeout: 5000 });
         const roles = rolesRes.data.roles.sort((a, b) => b.rank - a.rank); // Sort by rank level desc
 
         const result = {
@@ -313,7 +283,7 @@ app.get('/group-info/:groupId', protectTier(2), async (req, res) => {
                 message: 'Roblox is limiting requests. Please try again in a few minutes.' 
             });
         }
-        console.error(`[INTEL] Group API Error for ${groupId}:`, error.message, error.response?.status);
+        console.error('Group API Error:', error.message);
         res.status(500).json({ 
             error: 'Failed to fetch unit data', 
             message: error.message 
@@ -334,14 +304,10 @@ app.get('/verify-member/:unitName/:username', protectTier(2), async (req, res) =
         let userData;
         try {
             // PHASE A: Exact Username Lookup (Robust & High Rate Limit)
-            const exactRes = await requestWithRetry(`https://users.${RBX_PROXY}/v1/usernames/users`, {
-                method: 'POST',
-                data: {
-                    usernames: [username.trim()],
-                    excludeBannedUsers: false
-                },
-                timeout: 5000
-            });
+            const exactRes = await axios.post('https://users.roblox.com/v1/usernames/users', {
+                usernames: [username.trim()],
+                excludeBannedUsers: false
+            }, { timeout: 5000 });
             
             userData = exactRes.data.data[0];
 
@@ -349,7 +315,7 @@ app.get('/verify-member/:unitName/:username', protectTier(2), async (req, res) =
             if (!userData) {
                 console.log(`[SCAN] No exact match for "${username}". Attempting fuzzy search...`);
                 // limit=1 is more economical for fuzzy search
-                const searchRes = await fetchWithRetry(`https://users.${RBX_PROXY}/v1/users/search?keyword=${encodeURIComponent(username.trim())}&limit=1`, { timeout: 5000 });
+                const searchRes = await axios.get(`https://users.roblox.com/v1/users/search?keyword=${encodeURIComponent(username.trim())}&limit=1`, { timeout: 5000 });
                 userData = searchRes.data.data[0];
             }
         } catch (rbErr) {
@@ -398,7 +364,7 @@ app.get('/verify-member/:unitName/:username', protectTier(2), async (req, res) =
         const NS_GROUP_ID = "1008942731";
 
         try {
-            const rbRes = await fetchWithRetry(`https://groups.${RBX_PROXY}/v1/users/${rbId}/groups/roles`);
+            const rbRes = await axios.get(`https://groups.roblox.com/v1/users/${rbId}/groups/roles`);
             const groups = rbRes.data.data;
             
             groupData = groups.find(g => g.group.id == unit.groupId);
@@ -521,48 +487,29 @@ try {
 app.get('/deep-intel/:username', protectTier(2), async (req, res) => {
     try {
         const { username } = req.params;
-        const force = req.query.force === 'true';
         
-        // 1. Check Cache
-        if (!force && intelCache.has(username.toLowerCase())) {
-            const cached = intelCache.get(username.toLowerCase());
-            if (Date.now() - cached.timestamp < CACHE_TTL) {
-                return res.json(cached.data);
-            }
-        }
-        
-        // Resolve User (Move resolution below cache check for efficiency)
-        const exactRes = await requestWithRetry(`https://users.${RBX_PROXY}/v1/usernames/users`, {
-            method: 'POST',
-            data: {
-                usernames: [username.trim()],
-                excludeBannedUsers: false
-            }
+        // 1. Resolve User
+        const exactRes = await axios.post('https://users.roblox.com/v1/usernames/users', {
+            usernames: [username.trim()],
+            excludeBannedUsers: false
         });
         const userData = exactRes.data.data[0];
         if (!userData) return res.status(404).json({ message: "User not found" });
 
         const userId = userData.id;
 
-        // 2. Fetch DATA with staggered execution to avoid Proxy Rate Limits
-        const staggeredFetch = async (url, delay = 0) => {
-            if (delay > 0) await new Promise(r => setTimeout(r, delay));
-            return fetchWithRetry(url);
-        };
-
+        // 2. Fetch DATA in Parallel
         const [groupsRes, avatarRes, bustRes, badgesRes, detailedRes, outfitRes, rotectorRes] = await Promise.all([
-            staggeredFetch(`https://groups.${RBX_PROXY}/v1/users/${userId}/groups/roles`, 0).catch(e => ({ data: { data: [] } })),
-            staggeredFetch(`https://thumbnails.${RBX_PROXY}/v1/users/avatar?userIds=${userId}&size=420x420&format=Png&isCircular=false`, 200).catch(e => ({ data: { data: [{ imageUrl: "" }] } })),
-            staggeredFetch(`https://thumbnails.${RBX_PROXY}/v1/users/avatar-bust?userIds=${userId}&size=150x150&format=Png&isCircular=false`, 400).catch(e => ({ data: { data: [{ imageUrl: "" }] } })),
-            staggeredFetch(`https://badges.${RBX_PROXY}/v1/users/${userId}/badges?limit=25&sortOrder=Desc`, 600).catch(e => ({ data: { data: [] } })),
-            staggeredFetch(`https://users.${RBX_PROXY}/v1/users/${userId}`, 800).catch(e => ({ data: {} })),
-            fetchWithRetry(`https://avatar.${RBX_PROXY}/v1/users/${userId}/outfits?isEditable=true&itemsPerPage=50`, {}, 4, 3000).catch(e => ({ data: { data: [] } })),
-            fetchWithRetry(`https://roscoe.rotector.com/v1/users/${userId}`, {
-                headers: process.env.ROTECTOR_API_KEY ? { 'Authorization': `Bearer ${process.env.ROTECTOR_API_KEY}` } : {}
-            }).catch(e => {
-                if (e.response && e.response.status === 404) return { data: null };
-                return { data: null };
-            })
+            axios.get(`https://groups.roblox.com/v1/users/${userId}/groups/roles`, { timeout: 6000 }).catch(e => ({ data: { data: [] } })),
+            axios.get(`https://thumbnails.roblox.com/v1/users/avatar?userIds=${userId}&size=420x420&format=Png&isCircular=false`, { timeout: 6000 }).catch(e => ({ data: { data: [{ imageUrl: "" }] } })),
+            axios.get(`https://thumbnails.roblox.com/v1/users/avatar-bust?userIds=${userId}&size=150x150&format=Png&isCircular=false`, { timeout: 6000 }).catch(e => ({ data: { data: [{ imageUrl: "" }] } })),
+            axios.get(`https://badges.roblox.com/v1/users/${userId}/badges?limit=25&sortOrder=Desc`, { timeout: 6000 }).catch(e => ({ data: { data: [] } })),
+            axios.get(`https://users.roblox.com/v1/users/${userId}`, { timeout: 6000 }).catch(e => ({ data: {} })),
+            axios.get(`https://avatar.roblox.com/v1/users/${userId}/outfits?isEditable=true&itemsPerPage=50`, { timeout: 6000 }).catch(e => ({ data: { data: [] } })),
+            axios.get(`https://roscoe.rotector.com/v1/users/${userId}`, {
+                headers: process.env.ROTECTOR_API_KEY ? { 'Authorization': `Bearer ${process.env.ROTECTOR_API_KEY}` } : {},
+                timeout: 5000
+            }).catch(e => ({ data: null }))
         ]);
 
         const groups = groupsRes.data?.data || [];
@@ -583,7 +530,10 @@ app.get('/deep-intel/:username', protectTier(2), async (req, res) => {
             const fetchGroupIcons = async () => {
                 if (!groupIds) return;
                 try {
-                    const res = await fetchWithRetry(`https://thumbnails.${RBX_PROXY}/v1/groups/icons?groupIds=${groupIds}&size=150x150&format=Png&isCircular=false`);
+                    const res = await axios.get(`https://thumbnails.roblox.com/v1/groups/icons`, {
+                        params: { groupIds, size: '150x150', format: 'Png', isCircular: false },
+                        timeout: 5000
+                    });
                     res.data?.data?.forEach(i => groupIcons[i.targetId] = i.imageUrl);
                 } catch (e) { console.warn("[ICONS] Group icon fetch failed:", e.message); }
             };
@@ -591,7 +541,10 @@ app.get('/deep-intel/:username', protectTier(2), async (req, res) => {
             const fetchBadgeIcons = async () => {
                 if (!badgeIds) return;
                 try {
-                    const res = await fetchWithRetry(`https://thumbnails.${RBX_PROXY}/v1/badges/icons?badgeIds=${badgeIds}&size=150x150&format=Png&isCircular=false`);
+                    const res = await axios.get(`https://thumbnails.roblox.com/v1/badges/icons`, {
+                        params: { badgeIds, size: '150x150', format: 'Png', isCircular: false },
+                        timeout: 5000
+                    });
                     res.data?.data?.forEach(i => badgeIcons[i.targetId] = i.imageUrl);
                 } catch (e) { console.warn("[ICONS] Badge icon fetch failed:", e.message); }
             };
@@ -601,47 +554,31 @@ app.get('/deep-intel/:username', protectTier(2), async (req, res) => {
             console.warn("[ICONS] Global icon fetch error:", iconErr.message);
         }
 
-        // 3. Process Outfits (With fallback and thumbnail waiting)
+        // 3. Process Outfits (isEditable=true is already in the query)
         let outfits = [];
-        let finalOutfits = rawOutfits;
+        if (rawOutfits && Array.isArray(rawOutfits) && rawOutfits.length > 0) {
+            // Keep the slicing to prevent UI bloat, but Trust rawOutfits more now
+            const filteredOutfits = rawOutfits.slice(0, 24);
 
-        // Fallback: If isEditable=true yielded nothing, try standard fetch
-        if (!finalOutfits || finalOutfits.length === 0) {
-            try {
-                const fallbackRes = await fetchWithRetry(`https://avatar.${RBX_PROXY}/v1/users/${userId}/outfits?itemsPerPage=25`, { timeout: 5000 });
-                finalOutfits = fallbackRes.data?.data || [];
-            } catch (e) { console.warn("[OUTFIT] Fallback fetch failed"); }
-        }
-
-        if (finalOutfits && finalOutfits.length > 0) {
-            const filteredOutfits = finalOutfits.slice(0, 24);
-            const outfitIds = filteredOutfits.map(o => o.id).join(',');
-            
-            try {
-                // Fetch thumbnails with a slightly longer retry cycle for pending states
-                let outfitThumbRes = await fetchWithRetry(`https://thumbnails.${RBX_PROXY}/v1/users/outfits?userOutfitIds=${outfitIds}&size=150x150&format=Png&isCircular=false`, {}, 3, 2000);
-                
-                // If many are pending, wait once and retry
-                const pendingCount = outfitThumbRes.data?.data?.filter(t => t.state !== 'Completed').length || 0;
-                if (pendingCount > filteredOutfits.length / 2) {
-                    await new Promise(r => setTimeout(r, 2000));
-                    outfitThumbRes = await fetchWithRetry(`https://thumbnails.${RBX_PROXY}/v1/users/outfits?userOutfitIds=${outfitIds}&size=150x150&format=Png&isCircular=false`, {}, 1);
+            if (filteredOutfits.length > 0) {
+                const outfitIds = filteredOutfits.map(o => o.id).join(',');
+                try {
+                    const outfitThumbRes = await axios.get(`https://thumbnails.roblox.com/v1/users/outfits?userOutfitIds=${outfitIds}&size=150x150&format=Png&isCircular=false`, { timeout: 10000 });
+                    outfits = filteredOutfits.map(o => {
+                        const thumb = outfitThumbRes.data?.data?.find(t => t.targetId === o.id);
+                        let img = (thumb && thumb.state === 'Completed' && thumb.imageUrl) 
+                            ? thumb.imageUrl 
+                            : "https://tr.rbxcdn.com/38c6edcf096a30366bc90e9d68a2d1d4/150/150/Avatar/Png";
+                        return { id: o.id, name: o.name || "UNNAMED OUTFIT", thumbnail: img };
+                    });
+                } catch (thumbErr) {
+                    console.warn(`[THUMB] Outfit Thumbnail fetch failed for ${userId}:`, thumbErr.message);
+                    outfits = filteredOutfits.map(o => ({ 
+                        id: o.id, 
+                        name: o.name || "UNNAMED OUTFIT", 
+                        thumbnail: "https://tr.rbxcdn.com/38c6edcf096a30366bc90e9d68a2d1d4/150/150/Avatar/Png" 
+                    }));
                 }
-
-                outfits = filteredOutfits.map(o => {
-                    const thumb = outfitThumbRes.data?.data?.find(t => t.targetId === o.id);
-                    let img = (thumb && thumb.state === 'Completed' && thumb.imageUrl) 
-                        ? thumb.imageUrl 
-                        : (thumb && thumb.state === 'Pending' ? "https://tr.rbxcdn.com/38c6edcf096a30366bc90e9d68a2d1d4/150/150/Avatar/Png" : "https://tr.rbxcdn.com/38c6edcf096a30366bc90e9d68a2d1d4/150/150/Avatar/Png");
-                    return { id: o.id, name: o.name || "UNNAMED OUTFIT", thumbnail: img };
-                });
-            } catch (thumbErr) {
-                console.warn(`[THUMB] Outfit Thumbnail fetch failed for ${userId}:`, thumbErr.message);
-                outfits = filteredOutfits.map(o => ({ 
-                    id: o.id, 
-                    name: o.name || "UNNAMED OUTFIT", 
-                    thumbnail: "https://tr.rbxcdn.com/38c6edcf096a30366bc90e9d68a2d1d4/150/150/Avatar/Png" 
-                }));
             }
         }
 
@@ -652,7 +589,7 @@ app.get('/deep-intel/:username', protectTier(2), async (req, res) => {
         const rotRisk = rotector?.data?.risk_level || "Unknown";
         logAction(req.user, "DEEP_INTEL_SCRAPE", `**Subject:** ${userData.name}\n**ID:** ${userId}\n**Risk Level:** ${isCondo || rotRisk === 'High' ? "CRITICAL" : rotRisk}\n**RoTector Info:** ${rotector ? "CONNECTED" : "OFFLINE"}`);
 
-        const responseData = {
+        res.json({
             username: userData.name,
             displayName: userData.displayName,
             userId: userId,
@@ -675,15 +612,7 @@ app.get('/deep-intel/:username', protectTier(2), async (req, res) => {
             })),
             isCondoUser: isCondo,
             rotector: rotector?.data || null
-        };
-
-        // Cache the result
-        intelCache.set(username.toLowerCase(), {
-            timestamp: Date.now(),
-            data: responseData
         });
-
-        res.json(responseData);
     } catch (err) {
         console.error("Deep Intel Error:", err.message);
         res.status(500).json({ message: "Uplink Failed" });

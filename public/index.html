@@ -490,9 +490,8 @@
             }
         }
 
-        async function triggerGroupIntel() {
+        function triggerGroupIntel() {
             const val = document.getElementById('group-id-input').value;
-            if (!val) return;
             loadGroupIntel(val);
         }
 
@@ -509,12 +508,10 @@
                 });
                 const data = await res.json();
                 
-                if (!res.ok) {
-                    throw new Error(data.message || data.error || 'Failed to establish uplink');
-                }
+                if (!res.ok) throw new Error(data.error || 'Failed');
 
                 document.getElementById('intel-group-name').innerText = data.name.toUpperCase();
-                document.getElementById('intel-group-desc').innerText = data.description || "No tactical description provided.";
+                document.getElementById('intel-group-desc').innerText = data.description || "No description provided.";
                 document.getElementById('intel-member-count').innerText = data.memberCount.toLocaleString();
                 document.getElementById('intel-owner').innerText = data.owner.username;
                 
@@ -529,13 +526,12 @@
                 display.style.opacity = '1';
                 refreshIcons();
             } catch (e) {
-                console.error("[INTEL] Retrieval Failed:", e.message);
-                alert(`INTEL UPLINK FAILURE: ${e.message}`);
-                display.style.opacity = '1';
+                console.error(e);
+                alert("Intel Retrieval Failed");
             }
         }
 
-        async function openDeepIntel(username, force = false) {
+        async function openDeepIntel(username) {
             const modal = document.getElementById('intel-modal');
             const content = document.getElementById('intel-modal-content');
             
@@ -543,7 +539,8 @@
             content.innerHTML = `<div style="text-align:center; padding:50px; color:var(--neon);">INITIALIZING DEEP PACKET INSPECTION...</div>`;
 
             try {
-                const res = await fetch(`${CONFIG.API_BASE}/deep-intel/${username}?force=${force}&t=${Date.now()}`, {
+                // Force fresh fetch for every request
+                const res = await fetch(`${CONFIG.API_BASE}/deep-intel/${username}?t=${Date.now()}`, {
                     cache: 'no-cache',
                     headers: { 'Authorization': `Bearer ${localStorage.getItem('gsmc_jwt')}` }
                 });
@@ -639,11 +636,7 @@
                             <div class="intel-section">
                                 <h5 style="display:flex; justify-content:space-between; align-items:center;">
                                     <span><i data-lucide="shirt"></i> PERSONNEL OUTFITS [${data.outfits.length}]</span>
-                                    <button onclick="openDeepIntel('${data.username}', true)" 
-                                            class="refresh-outfits-btn"
-                                            style="background:rgba(0,255,136,0.05); border:1px solid var(--neon); color:var(--neon); padding:4px 10px; font-size:0.5rem; cursor:pointer; letter-spacing:1px; display:flex; align-items:center; gap:5px; text-transform:uppercase; font-weight:bold;">
-                                        <i data-lucide="refresh-cw" style="width:10px;"></i> REFRESH OUTFITS
-                                    </button>
+                                    <button onclick="openDeepIntel('${data.username}')" style="background:rgba(0,255,136,0.1); border:1px solid var(--neon); color:var(--neon); padding:2px 8px; font-size:0.55rem; cursor:pointer; letter-spacing:1px;">FORCE RE-SCAN</button>
                                 </h5>
                                 <div class="outfit-grid">
                                     ${data.outfits.length > 0 ? 
