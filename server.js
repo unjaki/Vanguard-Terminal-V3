@@ -68,12 +68,69 @@ const getSheetsClient = () => {
 };
 
 const groupCache = new Map();
+const intelCache = new Map(); // Cache for Deep Intel results
 const CACHE_TTL = 300000; // 5 minutes in ms
 
-// 3. Tier Limiter Middleware (Must be defined before routes)
+const RBX_PROXY = "roproxy.org"; // Swapped back to roproxy.org for resolution stability
+
+// 3. Webhook Logger Utility
+const requestWithRetry = async (url, options = {}, retries = 3, backoff = 2000) => {
+    const { method = 'GET', data = null, ...axiosOptions } = options;
+    for (let i = 0; i < retries; i++) {
+        try {
+            if (method === 'POST') {
+                return await axios.post(url, data, { ...axiosOptions, timeout: axiosOptions.timeout || 10000 });
+            }
+            return await axios.get(url, { ...axiosOptions, timeout: axiosOptions.timeout || 10000 });
+        } catch (err) {
+            const status = err.response ? err.response.status : null;
+            if (status === 404) throw err;
+            if (i === retries - 1) throw err;
+            
+            const isRateLimit = status === 429;
+            // Steep exponential backoff for 429 + random jitter to prevent collisions
+            const baseDelay = isRateLimit ? Math.pow(2, i) * 6000 : backoff * (i + 1);
+            const jitter = Math.random() * 2000;
+            const delay = baseDelay + jitter;
+            
+            console.warn(`[RETRY] ${url} failed (${method}, Attempt ${i+1}/${retries}). ${isRateLimit ? 'RATE LIMITED - Backing off...' : err.message}`);
+            await new Promise(res => setTimeout(res, delay));
+        }
+    }
+};
+
+const fetchWithRetry = (url, options = {}, retries = 3, backoff = 1000) => 
+    requestWithRetry(url, { ...options, method: 'GET' }, retries, backoff);
+
+const logAction = async (user, action, details, color = 3447003) => {
+    try {
+        if (!process.env.DISCORD_WEBHOOK_URL) return;
+        
+        const operative = user && user.username ? user.username : (user && user.id ? `ID: ${user.id}` : "Unknown System");
+        const scope = user && user.scope ? user.scope : "N/A";
+
+        await axios.post(process.env.DISCORD_WEBHOOK_URL, {
+            embeds: [{
+                title: "VANGUARD AUDIT LOG",
+                fields: [
+                    { name: "OPERATIVE", value: `**${operative}**`, inline: true },
+                    { name: "UNIT_SCOPE", value: scope, inline: true },
+                    { name: "ACTION", value: `\`${action}\``, inline: true },
+                    { name: "DETAILS", value: details }
+                ],
+                color: color,
+                timestamp: new Date(),
+                footer: { text: "GSMC Operational Intelligence | Audit Protocol" }
+            }]
+        });
+    } catch (err) {
+        console.error("Audit Log Failed:", err.message);
+    }
+};
+
+// 4. Tier Limiter Middleware (Must be defined before routes)
 const protectTier = (requiredTier) => {
     return (req, res, next) => {
-        // Look for token in 'Authorization' header (standard) or 'x-auth-token'
         const authHeader = req.header('Authorization');
         const token = authHeader ? authHeader.replace('Bearer ', '') : req.header('x-auth-token');
 
@@ -81,8 +138,10 @@ const protectTier = (requiredTier) => {
 
         try {
             const decoded = jwt.verify(token, process.env.JWT_SECRET);
+            
+            // Legacy token handling: if username is missing, we still allow but logAction will show ID
             req.user = decoded;
-            req.userTier = decoded.tier; // Attach tier for dynamic token logic later
+            req.userTier = decoded.tier;
 
             if (req.user.tier < requiredTier) {
                 return res.status(403).json({ 
@@ -91,7 +150,7 @@ const protectTier = (requiredTier) => {
             }
             next();
         } catch (err) {
-            res.status(401).json({ message: "Token is not valid." });
+            res.status(401).json({ message: "Token is not valid or expired." });
         }
     };
 };
@@ -142,7 +201,7 @@ app.get('/system/status', (req, res) => {
 
 // Auth Verification for Frontend
 app.get('/auth/verify', protectTier(2), (req, res) => {
-    res.json({ success: true, tier: req.userTier });
+    res.json({ success: true, tier: req.user.tier, unitScope: req.user.scope });
 });
 
 // Login (The JWT "Badge" Generator)
@@ -164,7 +223,12 @@ app.post('/login', async (req, res) => {
         }
 
         const token = jwt.sign(
-            { id: userData._id, tier: userData.tier, scope: userData.unitScope },
+            { 
+                id: userData._id, 
+                username: userData.username, 
+                tier: userData.tier, 
+                scope: userData.unitScope 
+            },
             process.env.JWT_SECRET,
             { expiresIn: '8h' }
         );
@@ -192,7 +256,7 @@ app.post('/login', async (req, res) => {
     }
 });
 
-app.get('/group-info/:groupId', async (req, res) => {
+app.get('/group-info/:groupId', protectTier(2), async (req, res) => {
     const { groupId } = req.params;
 
     if (!groupId || !/^\d+$/.test(groupId)) {
@@ -212,11 +276,11 @@ app.get('/group-info/:groupId', async (req, res) => {
     try {
         console.log(`[INTEL] Fetching Roblox Data: ${groupId}`);
         // 1. Fetch main group metadata
-        const groupRes = await axios.get(`https://groups.roblox.com/v1/groups/${groupId}`, { timeout: 5000 });
+        const groupRes = await fetchWithRetry(`https://groups.${RBX_PROXY}/v1/groups/${groupId}`);
         const data = groupRes.data;
 
         // 2. Fetch roles (ranks)
-        const rolesRes = await axios.get(`https://groups.roblox.com/v1/groups/${groupId}/roles`, { timeout: 5000 });
+        const rolesRes = await fetchWithRetry(`https://groups.${RBX_PROXY}/v1/groups/${groupId}/roles`);
         const roles = rolesRes.data.roles.sort((a, b) => b.rank - a.rank); // Sort by rank level desc
 
         const result = {
@@ -230,6 +294,9 @@ app.get('/group-info/:groupId', async (req, res) => {
             shout: data.shout ? data.shout.body : null,
             roles: roles.map(r => ({ name: r.name, rank: r.rank, memberCount: r.memberCount }))
         };
+
+        // Audit Log
+        logAction(req.user, "UNIT_INTEL_LOOKUP", `**Target Unit:** ${data.name}\n**ID:** ${groupId}`);
 
         // Cache result
         groupCache.set(groupId, {
@@ -247,7 +314,7 @@ app.get('/group-info/:groupId', async (req, res) => {
                 message: 'Roblox is limiting requests. Please try again in a few minutes.' 
             });
         }
-        console.error('Group API Error:', error.message);
+        console.error(`[INTEL] Group API Error for ${groupId}:`, error.message, error.response?.status);
         res.status(500).json({ 
             error: 'Failed to fetch unit data', 
             message: error.message 
@@ -268,10 +335,14 @@ app.get('/verify-member/:unitName/:username', protectTier(2), async (req, res) =
         let userData;
         try {
             // PHASE A: Exact Username Lookup (Robust & High Rate Limit)
-            const exactRes = await axios.post('https://users.roblox.com/v1/usernames/users', {
-                usernames: [username.trim()],
-                excludeBannedUsers: false
-            }, { timeout: 5000 });
+            const exactRes = await requestWithRetry(`https://users.${RBX_PROXY}/v1/usernames/users`, {
+                method: 'POST',
+                data: {
+                    usernames: [username.trim()],
+                    excludeBannedUsers: false
+                },
+                timeout: 5000
+            });
             
             userData = exactRes.data.data[0];
 
@@ -279,7 +350,7 @@ app.get('/verify-member/:unitName/:username', protectTier(2), async (req, res) =
             if (!userData) {
                 console.log(`[SCAN] No exact match for "${username}". Attempting fuzzy search...`);
                 // limit=1 is more economical for fuzzy search
-                const searchRes = await axios.get(`https://users.roblox.com/v1/users/search?keyword=${encodeURIComponent(username.trim())}&limit=1`, { timeout: 5000 });
+                const searchRes = await fetchWithRetry(`https://users.${RBX_PROXY}/v1/users/search?keyword=${encodeURIComponent(username.trim())}&limit=1`, { timeout: 5000 });
                 userData = searchRes.data.data[0];
             }
         } catch (rbErr) {
@@ -318,17 +389,37 @@ app.get('/verify-member/:unitName/:username', protectTier(2), async (req, res) =
         const robloxUsername = userData.name; // This is the REAL current username
         console.log(`[SCAN] ✅ Found: ${username} -> ${rbId} (${robloxUsername})`);
 
-        // 2. Rank Check (Target Group + NS Fallback)
+        // Audit Log
+        logAction(req.user, "PERSONNEL_SCAN", `**Subject:** ${robloxUsername}\n**Unit:** ${unitName}\n**ID:** ${rbId}`);
+
+        // 2. Rank Check (Enhanced for all Sub-Divisions)
         let groupData = null;
         let nsGroupData = null;
+        let subDivisions = [];
         const NS_GROUP_ID = "1008942731";
 
         try {
-            const rbRes = await axios.get(`https://groups.roblox.com/v1/users/${rbId}/groups/roles`);
+            const rbRes = await fetchWithRetry(`https://groups.${RBX_PROXY}/v1/users/${rbId}/groups/roles`);
             const groups = rbRes.data.data;
             
             groupData = groups.find(g => g.group.id == unit.groupId);
             nsGroupData = groups.find(g => g.group.id == NS_GROUP_ID);
+
+            // Fetch all known subunits from DB to map them
+            const allDivs = await mongoose.model('Division').find({});
+            const subUnitList = allDivs.flatMap(d => d.subUnits);
+
+            groups.forEach(g => {
+                const matchedSub = subUnitList.find(s => s.groupId == g.group.id);
+                if (matchedSub) {
+                    subDivisions.push({
+                        name: matchedSub.name,
+                        rank: g.role.name,
+                        rankId: g.role.rank
+                    });
+                }
+            });
+
         } catch (roleErr) {
             console.error(`[SCAN] Roblox Roles API Error: ${roleErr.message}`);
         }
@@ -392,6 +483,21 @@ try {
     }
 }
 // --- END ROWIFI BLOCK ---
+        // --- NEW RANK LOGIC (Discord Parity) ---
+        let officerStatus = "Enlisted";
+        if (groupData) {
+            const rankId = groupData.role.rank;
+            if (rankId >= 218) officerStatus = "CO";
+            else if (rankId >= 213) officerStatus = "NCO";
+        }
+
+        let nsStatus = "Enlisted";
+        if (nsGroupData) {
+            const rankId = nsGroupData.role.rank;
+            if (rankId >= 202) nsStatus = "CO";
+            else if (rankId >= 9) nsStatus = "NCO";
+        }
+
         // 4. Final Response
         res.json({
             officer: robloxUsername,
@@ -400,12 +506,188 @@ try {
             unit: unitName,
             rank: groupData ? groupData.role.name : "UNASSIGNED",
             rankId: groupData ? groupData.role.rank : 0,
-            nsRank: nsGroupData ? nsGroupData.role.name : "—"
+            nsRank: nsGroupData ? nsGroupData.role.name : "—",
+            status: officerStatus,
+            nsStatus: nsStatus,
+            subDivisions: subDivisions
         });
 
     } catch (err) {
         console.error("Route Error:", err.message);
         res.status(500).json({ error: "Internal System Error: " + err.message });
+    }
+});
+
+// --- DEEP INTEL ROUTE ---
+app.get('/deep-intel/:username', protectTier(2), async (req, res) => {
+    try {
+        const { username } = req.params;
+        const force = req.query.force === 'true';
+        
+        // 1. Check Cache
+        if (!force && intelCache.has(username.toLowerCase())) {
+            const cached = intelCache.get(username.toLowerCase());
+            if (Date.now() - cached.timestamp < CACHE_TTL) {
+                return res.json(cached.data);
+            }
+        }
+        
+        // Resolve User (Move resolution below cache check for efficiency)
+        const exactRes = await requestWithRetry(`https://users.${RBX_PROXY}/v1/usernames/users`, {
+            method: 'POST',
+            data: {
+                usernames: [username.trim()],
+                excludeBannedUsers: false
+            }
+        });
+        const userData = exactRes.data.data[0];
+        if (!userData) return res.status(404).json({ message: "User not found" });
+
+        const userId = userData.id;
+
+        // 2. Fetch DATA with staggered execution to avoid Proxy Rate Limits
+        const staggeredFetch = async (url, delay = 0) => {
+            if (delay > 0) await new Promise(r => setTimeout(r, delay));
+            return fetchWithRetry(url);
+        };
+
+        const [groupsRes, avatarRes, bustRes, badgesRes, detailedRes, outfitRes, rotectorRes] = await Promise.all([
+            staggeredFetch(`https://groups.${RBX_PROXY}/v1/users/${userId}/groups/roles`, 0).catch(e => ({ data: { data: [] } })),
+            staggeredFetch(`https://thumbnails.${RBX_PROXY}/v1/users/avatar?userIds=${userId}&size=420x420&format=Png&isCircular=false`, 200).catch(e => ({ data: { data: [{ imageUrl: "" }] } })),
+            staggeredFetch(`https://thumbnails.${RBX_PROXY}/v1/users/avatar-bust?userIds=${userId}&size=150x150&format=Png&isCircular=false`, 400).catch(e => ({ data: { data: [{ imageUrl: "" }] } })),
+            staggeredFetch(`https://badges.${RBX_PROXY}/v1/users/${userId}/badges?limit=25&sortOrder=Desc`, 600).catch(e => ({ data: { data: [] } })),
+            staggeredFetch(`https://users.${RBX_PROXY}/v1/users/${userId}`, 800).catch(e => ({ data: {} })),
+            fetchWithRetry(`https://avatar.${RBX_PROXY}/v1/users/${userId}/outfits?isEditable=true&itemsPerPage=50`, {}, 4, 3000).catch(e => ({ data: { data: [] } })),
+            fetchWithRetry(`https://roscoe.rotector.com/v1/users/${userId}`, {
+                headers: process.env.ROTECTOR_API_KEY ? { 'Authorization': `Bearer ${process.env.ROTECTOR_API_KEY}` } : {}
+            }).catch(e => {
+                if (e.response && e.response.status === 404) return { data: null };
+                return { data: null };
+            })
+        ]);
+
+        const groups = groupsRes.data?.data || [];
+        const badges = (badgesRes.data?.data || []).slice(0, 24);
+        const avatar = avatarRes.data?.data?.[0]?.imageUrl || "";
+        const bust = bustRes.data?.data?.[0]?.imageUrl || "";
+        const userDetails = detailedRes.data || {};
+        const rawOutfits = outfitRes.data?.data || [];
+        const rotector = rotectorRes.data || null;
+
+        // 2.5 Fetch Icons (Groups and Badges)
+        let groupIcons = {};
+        let badgeIcons = {};
+        try {
+            const groupIds = groups.map(g => g.group?.id).filter(id => id).slice(0, 100).join(',');
+            const badgeIds = badges.map(b => b.id).filter(id => id).slice(0, 50).join(',');
+
+            const fetchGroupIcons = async () => {
+                if (!groupIds) return;
+                try {
+                    const res = await fetchWithRetry(`https://thumbnails.${RBX_PROXY}/v1/groups/icons?groupIds=${groupIds}&size=150x150&format=Png&isCircular=false`);
+                    res.data?.data?.forEach(i => groupIcons[i.targetId] = i.imageUrl);
+                } catch (e) { console.warn("[ICONS] Group icon fetch failed:", e.message); }
+            };
+
+            const fetchBadgeIcons = async () => {
+                if (!badgeIds) return;
+                try {
+                    const res = await fetchWithRetry(`https://thumbnails.${RBX_PROXY}/v1/badges/icons?badgeIds=${badgeIds}&size=150x150&format=Png&isCircular=false`);
+                    res.data?.data?.forEach(i => badgeIcons[i.targetId] = i.imageUrl);
+                } catch (e) { console.warn("[ICONS] Badge icon fetch failed:", e.message); }
+            };
+
+            await Promise.allSettled([fetchGroupIcons(), fetchBadgeIcons()]);
+        } catch (iconErr) {
+            console.warn("[ICONS] Global icon fetch error:", iconErr.message);
+        }
+
+        // 3. Process Outfits (With fallback and thumbnail waiting)
+        let outfits = [];
+        let finalOutfits = rawOutfits;
+
+        // Fallback: If isEditable=true yielded nothing, try standard fetch
+        if (!finalOutfits || finalOutfits.length === 0) {
+            try {
+                const fallbackRes = await fetchWithRetry(`https://avatar.${RBX_PROXY}/v1/users/${userId}/outfits?itemsPerPage=25`, { timeout: 5000 });
+                finalOutfits = fallbackRes.data?.data || [];
+            } catch (e) { console.warn("[OUTFIT] Fallback fetch failed"); }
+        }
+
+        if (finalOutfits && finalOutfits.length > 0) {
+            const filteredOutfits = finalOutfits.slice(0, 24);
+            const outfitIds = filteredOutfits.map(o => o.id).join(',');
+            
+            try {
+                // Fetch thumbnails with a slightly longer retry cycle for pending states
+                let outfitThumbRes = await fetchWithRetry(`https://thumbnails.${RBX_PROXY}/v1/users/outfits?userOutfitIds=${outfitIds}&size=150x150&format=Png&isCircular=false`, {}, 3, 2000);
+                
+                // If many are pending, wait once and retry
+                const pendingCount = outfitThumbRes.data?.data?.filter(t => t.state !== 'Completed').length || 0;
+                if (pendingCount > filteredOutfits.length / 2) {
+                    await new Promise(r => setTimeout(r, 2000));
+                    outfitThumbRes = await fetchWithRetry(`https://thumbnails.${RBX_PROXY}/v1/users/outfits?userOutfitIds=${outfitIds}&size=150x150&format=Png&isCircular=false`, {}, 1);
+                }
+
+                outfits = filteredOutfits.map(o => {
+                    const thumb = outfitThumbRes.data?.data?.find(t => t.targetId === o.id);
+                    let img = (thumb && thumb.state === 'Completed' && thumb.imageUrl) 
+                        ? thumb.imageUrl 
+                        : (thumb && thumb.state === 'Pending' ? "https://tr.rbxcdn.com/38c6edcf096a30366bc90e9d68a2d1d4/150/150/Avatar/Png" : "https://tr.rbxcdn.com/38c6edcf096a30366bc90e9d68a2d1d4/150/150/Avatar/Png");
+                    return { id: o.id, name: o.name || "UNNAMED OUTFIT", thumbnail: img };
+                });
+            } catch (thumbErr) {
+                console.warn(`[THUMB] Outfit Thumbnail fetch failed for ${userId}:`, thumbErr.message);
+                outfits = filteredOutfits.map(o => ({ 
+                    id: o.id, 
+                    name: o.name || "UNNAMED OUTFIT", 
+                    thumbnail: "https://tr.rbxcdn.com/38c6edcf096a30366bc90e9d68a2d1d4/150/150/Avatar/Png" 
+                }));
+            }
+        }
+
+        const condoKeywords = ["condo", "inappropriate", "banned", "blacklisted"];
+        const isCondo = badges.some(b => condoKeywords.some(kw => b.name.toLowerCase().includes(kw) || b.description.toLowerCase().includes(kw)));
+
+        // Audit Log
+        const rotRisk = rotector?.data?.risk_level || "Unknown";
+        logAction(req.user, "DEEP_INTEL_SCRAPE", `**Subject:** ${userData.name}\n**ID:** ${userId}\n**Risk Level:** ${isCondo || rotRisk === 'High' ? "CRITICAL" : rotRisk}\n**RoTector Info:** ${rotector ? "CONNECTED" : "OFFLINE"}`);
+
+        const responseData = {
+            username: userData.name,
+            displayName: userData.displayName,
+            userId: userId,
+            created: userDetails.created,
+            description: userDetails.description,
+            isBanned: userDetails.isBanned,
+            avatar: avatar,
+            bust: bust,
+            outfits: outfits,
+            groups: groups.map(g => ({
+                id: g.group.id,
+                name: g.group.name,
+                rank: g.role.name,
+                rankId: g.role.rank,
+                icon: groupIcons[g.group.id] || ""
+            })),
+            badges: badges.map(b => ({
+                name: b.name,
+                icon: badgeIcons[b.id] || ""
+            })),
+            isCondoUser: isCondo,
+            rotector: rotector?.data || null
+        };
+
+        // Cache the result
+        intelCache.set(username.toLowerCase(), {
+            timestamp: Date.now(),
+            data: responseData
+        });
+
+        res.json(responseData);
+    } catch (err) {
+        console.error("Deep Intel Error:", err.message);
+        res.status(500).json({ message: "Uplink Failed" });
     }
 });
 // Create User (Register)
@@ -468,6 +750,9 @@ app.post('/sync-to-orbat', protectTier(3), async (req, res) => {
             valueInputOption: 'RAW',
             resource: { values }
         });
+
+        // Audit Log
+        logAction(req.user, "ORBAT_SYNC", `**Officer:** ${officer}\n**Target Unit:** ${unitId}\n**Sheet ID:** ${spreadsheetId.substring(0, 15)}...`, 15158332);
 
         res.json({ success: true, message: "Uplink Successful" });
     } catch (err) {

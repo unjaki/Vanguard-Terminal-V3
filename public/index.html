@@ -24,7 +24,31 @@
 
         /* Dashboard Layout */
         #dashboard-view { display: none; width: 100vw; height: 100vh; position: fixed; top: 0; left: 0; background: var(--bg); z-index: 200; flex-direction: row; }
-        .sidebar { width: 260px; background: #080808; border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 25px 15px; }
+        
+        /* Sidebar Toggle Overlay */
+        #sidebar-toggle { position: fixed; top: 20px; left: 20px; z-index: 300; background: #111; border: 1px solid var(--border); color: var(--neon); width: 36px; height: 36px; display: none; align-items: center; justify-content: center; cursor: pointer; border-radius: 4px; transition: 0.2s; }
+        #sidebar-toggle:hover { background: #222; }
+
+        .sidebar { width: 260px; background: #080808; border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 25px 15px; transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1); position: relative; }
+        
+        /* Collapsed Sidebar Logic */
+        #dashboard-view.collapsed .sidebar { width: 60px; padding: 25px 5px; }
+        #dashboard-view.collapsed .sidebar h3, 
+        #dashboard-view.collapsed .sidebar .tab span,
+        #dashboard-view.collapsed .sidebar #terminate-session-txt { display: none; }
+        #dashboard-view.collapsed .sidebar .tab { justify-content: center; padding: 12px 0; margin-left: 0; border-left: none; }
+        #dashboard-view.collapsed .sidebar .tab.active { background: rgba(0, 255, 136, 0.1); border-right: 2px solid var(--neon); border-left: none; }
+
+        @media (max-width: 768px) {
+            #sidebar-toggle { display: flex; }
+            .sidebar { position: absolute; left: 0; top: 0; bottom: 0; z-index: 250; box-shadow: 20px 0 50px rgba(0,0,0,0.5); }
+            #dashboard-view.collapsed .sidebar { transform: translateX(-100%); }
+            .content-area { padding: 80px 15px 30px 15px; }
+            .intel-grid { grid-template-columns: 1fr; }
+            .profile-header { flex-direction: column; align-items: center; text-align: center; }
+            .modal-body { width: 95%; padding: 15px; }
+        }
+
         .tab { padding: 12px 15px; color: #666; cursor: pointer; border-radius: 3px; margin-bottom: 8px; font-size: 0.75rem; font-weight: 600; display: flex; align-items: center; gap: 12px; transition: 0.2s; letter-spacing: 1px; }
         .tab i { width: 16px; height: 16px; }
         .tab:hover { color: #fff; background: #111; }
@@ -41,6 +65,19 @@
         th { text-align: left; padding: 15px; color: #444; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 2px; border-bottom: 2px solid #1a1a1a; }
         td { padding: 15px; background: #121212; border-top: 1px solid #1a1a1a; border-bottom: 1px solid #1a1a1a; font-size: 0.75rem; color: #aaa; }
         tr:hover td { background: #181818; color: #fff; }
+        
+        /* Expandable Row */
+        .sub-row { display: none; }
+        .sub-row.active { display: table-row; }
+        .details-container { background: #080808; padding: 20px; border: 1px solid #1a1a1a; margin: 5px 15px 15px 15px; border-radius: 4px; border-left: 3px solid var(--neon); }
+        .sub-div-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px; }
+        .sub-div-card { background: #111; border: 1px solid #1a1a1a; padding: 12px; border-radius: 2px; }
+        .sub-div-card h6 { margin: 0 0 5px 0; color: #666; font-size: 0.6rem; letter-spacing: 1px; text-transform: uppercase; }
+        .sub-div-card p { margin: 0; color: var(--neon); font-family: monospace; font-size: 0.75rem; }
+        
+        .expand-btn { background: transparent; border: 1px solid #222; color: #444; width: 24px; height: 24px; padding: 0; border-radius: 4px; cursor: pointer; transition: 0.2s; }
+        .expand-btn:hover { border-color: var(--neon); color: var(--neon); }
+        .expand-btn.active { background: var(--neon); color: #000; border-color: var(--neon); transform: rotate(180deg); }
 
         /* Unit Intel Redesign */
         .intel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; border-bottom: 1px solid #222; padding-bottom: 20px; }
@@ -55,9 +92,50 @@
         
         .badge { font-size: 0.6rem; padding: 2px 6px; background: #333; color: #fff; border-radius: 3px; margin-left: 8px; text-transform: uppercase; }
         .badge-neon { background: var(--neon); color: #000; }
+        .badge-danger { background: var(--danger); color: #fff; }
+
+        /* Deep Intel Modal */
+        #intel-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-body { background: var(--card); border: 1px solid var(--neon); width: 1000px; max-width: 95vw; max-height: 90vh; padding: 30px; position: relative; overflow-y: auto; box-shadow: 0 0 50px rgba(0,255,136,0.1); }
+        .close-modal { position: absolute; top: 20px; right: 20px; color: #666; cursor: pointer; transition: 0.2s; z-index: 10; }
+        .close-modal:hover { color: var(--neon); }
+        
+        .intel-grid { display: grid; grid-template-columns: 320px 1fr; gap: 30px; }
+        @media (max-width: 900px) {
+            .intel-grid { grid-template-columns: 1fr; }
+            .intel-left { border-right: none !important; border-bottom: 1px solid #222; padding-right: 0 !important; padding-bottom: 30px; }
+        }
+
+        .avatar-container { background: radial-gradient(circle, #222 0%, #000 100%); padding: 20px; border: 1px solid #333; margin-bottom: 20px; display: flex; justify-content: center; }
+        .avatar-container img { width: 100%; max-width: 300px; filter: drop-shadow(0 0 10px rgba(0,255,136,0.2)); }
+        
+        .intel-section { margin-top: 25px; }
+        .intel-section h5 { color: var(--neon); font-size: 0.65rem; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 15px; border-left: 2px solid var(--neon); padding-left: 10px; display: flex; align-items: center; gap: 8px; }
+        
+        .badge-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
+        .badge-item { background: #111; border: 1px solid #1a1a1a; padding: 10px; display: flex; align-items: center; gap: 10px; font-size: 0.65rem; overflow: hidden; }
+        .badge-icon { width: 30px; height: 30px; object-fit: cover; flex-shrink: 0; }
+        
+        /* Outfit Gallery */
+        .outfit-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 12px; margin-top: 10px; }
+        .outfit-card { background: #0a0a0a; border: 1px solid #222; padding: 8px; text-align: center; transition: 0.2s; position: relative; }
+        .outfit-card:hover { border-color: var(--neon); background: #111; transform: translateY(-2px); }
+        .outfit-img { width: 100%; aspect-ratio: 1; object-fit: contain; margin-bottom: 5px; background: #000; }
+        .outfit-name { font-size: 0.55rem; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+        
+        .condo-alert { background: rgba(255, 68, 68, 0.1); border: 1px solid var(--danger); color: var(--danger); padding: 15px; margin-bottom: 20px; display: flex; align-items: center; gap: 12px; font-weight: 800; font-size: 0.75rem; letter-spacing: 1px; }
     </style>
 </head>
 <body>
+
+    <div id="intel-modal">
+        <div class="modal-body">
+            <span class="close-modal" onclick="closeIntelModal()"><i data-lucide="x"></i></span>
+            <div id="intel-modal-content">
+                <!-- Content injected by JS -->
+            </div>
+        </div>
+    </div>
 
     <div id="login-view" class="container">
         <h1><i data-lucide="shield-check"></i> VANGUARD TERMINAL</h1>
@@ -70,23 +148,24 @@
     </div>
 
     <div id="dashboard-view">
+        <button id="sidebar-toggle" onclick="toggleSidebar()"><i data-lucide="menu"></i></button>
         <nav class="sidebar">
             <h3 style="color: var(--neon); font-size: 0.75rem; letter-spacing: 3px; font-weight: 900; margin-bottom: 40px; padding: 0 15px;">
-                <i data-lucide="activity" style="vertical-align: middle; margin-right: 8px;"></i> VANGUARD
+                <i data-lucide="activity" style="vertical-align: middle; margin-right: 8px;"></i> <span>VANGUARD</span>
             </h3>
             
             <div class="tab active" data-target="user-lookup">
-                <i data-lucide="users"></i> PERSONNEL SEARCH
+                <i data-lucide="users"></i> <span>PERSONNEL SEARCH</span>
             </div>
             <div class="tab" data-target="group-intel">
-                <i data-lucide="database"></i> UNIT INTEL
+                <i data-lucide="database"></i> <span>UNIT INTEL</span>
             </div>
             <div class="tab" data-target="settings-tab">
-                <i data-lucide="settings"></i> SYSTEM SETTINGS
+                <i data-lucide="settings"></i> <span>SYSTEM SETTINGS</span>
             </div>
             
-            <button onclick="location.reload()" style="background:transparent; color:var(--danger); border:1px solid #300; margin-top:auto; font-size: 0.65rem;">
-                <i data-lucide="log-out"></i> TERMINATE SESSION
+            <button onclick="terminateSession()" style="background:transparent; border:1px solid #300; margin-top:auto; font-size: 0.65rem; color: var(--danger); padding: 12px 5px;">
+                <i data-lucide="log-out"></i> <span id="terminate-session-txt">TERMINATE SESSION</span>
             </button>
         </nav>
 
@@ -122,6 +201,7 @@
                                 <th>OFFICER</th>
                                 <th>RB-ID</th>
                                 <th>DS-LINK</th>
+                                <th>STATUS</th>
                                 <th>DESIGNATION</th>
                                 <th>NS-RANK</th>
                                 <th>ACTION</th>
@@ -254,6 +334,12 @@
         function initializeVanguard(scope) {
             document.getElementById('login-view').classList.add('hidden');
             document.getElementById('dashboard-view').style.display = 'flex';
+            
+            // Auto-collapse on mobile (tablet and below)
+            if (window.innerWidth <= 768) {
+                document.getElementById('dashboard-view').classList.add('collapsed');
+            }
+
             setupTabs();
             refreshIcons();
             
@@ -299,22 +385,65 @@
                     const data = await res.json();
                     
                     if (res.ok) {
+                        const statusColor = data.status === "CO" ? "var(--neon)" : data.status === "NCO" ? "#ffcc00" : "#888";
+                        const rowId = `row-${Math.random().toString(36).substr(2, 9)}`;
+                        
                         row.innerHTML = `
-                            <td style="color:#fff">${data.officer}</td>
+                            <td style="color:#fff; cursor:pointer;" onclick="openDeepIntel('${data.officer}')">
+                                <i data-lucide="search" style="width:10px; opacity:0.3;"></i> ${data.officer}
+                            </td>
                             <td>${data.robloxId}</td>
                             <td style="color:var(--neon)">${data.discordId || '—'}</td>
+                            <td style="color:${statusColor}; font-weight:bold;">${data.status}</td>
                             <td>${data.rank} <span class="badge">LVL ${data.rankId}</span></td>
-                            <td style="color:var(--neon)">${data.nsRank || '—'}</td>
+                            <td style="color:var(--neon)">${data.nsRank || '—'} <small style="color:#444">[${data.nsStatus}]</small></td>
                             <td>
-                                <button onclick='syncToOrbat(${JSON.stringify({ ...data, unitId: targetUnitId }).replace(/'/g, "&apos;")})' 
-                                        style="padding:4px 8px; font-size:0.6rem; border:1px solid var(--neon); background:transparent; color:var(--neon); width:auto;">
-                                    SYNC
-                                </button>
+                                <div style="display:flex; gap:5px; align-items:center;">
+                                    <button onclick='syncToOrbat(${JSON.stringify({ ...data, unitId: targetUnitId }).replace(/'/g, "&apos;")})' 
+                                            style="padding:4px 8px; font-size:0.6rem; border:1px solid var(--neon); background:transparent; color:var(--neon); width:auto;">
+                                        SYNC
+                                    </button>
+                                    <button onclick="openDeepIntel('${data.officer}')" 
+                                            style="padding:4px 8px; font-size:0.6rem; border:1px solid #444; background:transparent; color:#888; width:auto;">
+                                        INTEL
+                                    </button>
+                                    <button id="btn-${rowId}" onclick="toggleSubRow('${rowId}')" class="expand-btn">
+                                        <i data-lucide="chevron-down" style="width:12px;"></i>
+                                    </button>
+                                </div>
                             </td>
                         `;
+
+                        // Add Sub-Row
+                        const subRow = document.createElement('tr');
+                        subRow.id = `subrow-${rowId}`;
+                        subRow.className = "sub-row";
+                        
+                        const subDivContent = data.subDivisions && data.subDivisions.length > 0
+                            ? `<div class="sub-div-grid">
+                                ${data.subDivisions.map(s => `
+                                    <div class="sub-div-card">
+                                        <h6>${s.name}</h6>
+                                        <p>${s.rank} <small style="color:#444">[${s.rankId}]</small></p>
+                                    </div>
+                                `).join('')}
+                               </div>`
+                            : `<p style="color:#444; font-size:0.65rem; margin:0;">NO REGISTERED SUB-DIVISIONS DETECTED</p>`;
+
+                        subRow.innerHTML = `
+                            <td colspan="7" style="padding: 0; background: transparent; border: none;">
+                                <div class="details-container">
+                                    <h5 style="margin: 0 0 15px 0; font-size: 0.6rem; color: var(--neon); letter-spacing: 2px;">GSMC SUB-DIVISION ASSIGNMENTS</h5>
+                                    ${subDivContent}
+                                </div>
+                            </td>
+                        `;
+                        tbody.appendChild(subRow);
+                        refreshIcons();
                     } else {
                         row.innerHTML = `
                             <td>${name.trim()}</td>
+                            <td>—</td>
                             <td>—</td>
                             <td>—</td>
                             <td style="color:var(--danger)">${(data.message || "ERR").toUpperCase()}</td>
@@ -361,8 +490,9 @@
             }
         }
 
-        function triggerGroupIntel() {
+        async function triggerGroupIntel() {
             const val = document.getElementById('group-id-input').value;
+            if (!val) return;
             loadGroupIntel(val);
         }
 
@@ -374,13 +504,17 @@
             display.style.opacity = '0.5';
 
             try {
-                const res = await fetch(`${CONFIG.API_BASE}/group-info/${groupId}`);
+                const res = await fetch(`${CONFIG.API_BASE}/group-info/${groupId}`, {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('gsmc_jwt')}` }
+                });
                 const data = await res.json();
                 
-                if (!res.ok) throw new Error(data.error || 'Failed');
+                if (!res.ok) {
+                    throw new Error(data.message || data.error || 'Failed to establish uplink');
+                }
 
                 document.getElementById('intel-group-name').innerText = data.name.toUpperCase();
-                document.getElementById('intel-group-desc').innerText = data.description || "No description provided.";
+                document.getElementById('intel-group-desc').innerText = data.description || "No tactical description provided.";
                 document.getElementById('intel-member-count').innerText = data.memberCount.toLocaleString();
                 document.getElementById('intel-owner').innerText = data.owner.username;
                 
@@ -395,9 +529,181 @@
                 display.style.opacity = '1';
                 refreshIcons();
             } catch (e) {
-                console.error(e);
-                alert("Intel Retrieval Failed");
+                console.error("[INTEL] Retrieval Failed:", e.message);
+                alert(`INTEL UPLINK FAILURE: ${e.message}`);
+                display.style.opacity = '1';
             }
+        }
+
+        async function openDeepIntel(username, force = false) {
+            const modal = document.getElementById('intel-modal');
+            const content = document.getElementById('intel-modal-content');
+            
+            modal.style.display = 'flex';
+            content.innerHTML = `<div style="text-align:center; padding:50px; color:var(--neon);">INITIALIZING DEEP PACKET INSPECTION...</div>`;
+
+            try {
+                const res = await fetch(`${CONFIG.API_BASE}/deep-intel/${username}?force=${force}&t=${Date.now()}`, {
+                    cache: 'no-cache',
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('gsmc_jwt')}` }
+                });
+                const data = await res.json();
+                
+                if (!res.ok) throw new Error(data.message);
+
+                const joinDate = data.created ? new Date(data.created).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : "UNKNOWN";
+
+                content.innerHTML = `
+                    ${data.isCondoUser || (data.rotector && data.rotector.risk_level === 'High') ? `
+                        <div class="condo-alert">
+                            <i data-lucide="alert-triangle"></i> WARNING: SUSPECTED MALICIOUS OR HIGH-RISK ASSOCIATION DETECTED (COMMUNITY INDEX)
+                        </div>
+                    ` : ''}
+
+                    <div class="intel-grid">
+                        <!-- Left Column: AVATAR -->
+                        <div class="intel-left" style="border-right: 1px solid #222; padding-right:30px;">
+                            <div class="avatar-container">
+                                <img src="${data.avatar}" style="width:100%; filter: drop-shadow(0 0 10px rgba(0,255,136,0.2));">
+                            </div>
+                            <div style="display:flex; justify-content:center; gap:10px; margin-bottom: 20px;">
+                                <img src="${data.bust}" style="width:60px; height:60px; border:1px solid var(--neon); background:#000;">
+                                <div style="text-align:left;">
+                                    <h4 style="margin:0; font-size:0.7rem; color:#fff;">${data.displayName}</h4>
+                                    <p style="margin:0; font-size:0.6rem; color:#666;">ID: ${data.userId}</p>
+                                    <p style="margin:0; font-size:0.6rem; color:var(--neon);">JOINED: ${joinDate.toUpperCase()}</p>
+                                </div>
+                            </div>
+                            <div style="background: rgba(0,255,136,0.05); border: 1px solid #222; padding: 15px; font-size: 0.65rem;">
+                                <span style="color:var(--neon); display:block; margin-bottom:5px; font-weight:900;">PERSONNEL BIO:</span>
+                                <p style="color:#888; line-height:1.4; margin:0;">${data.description ? data.description.substring(0, 200) + (data.description.length > 200 ? '...' : '') : 'REDACTED'}</p>
+                            </div>
+                        </div>
+
+                        <!-- Right Column: INTEL -->
+                        <div class="intel-right">
+                            <div style="margin-bottom:20px;">
+                                <h1 style="margin:0; letter-spacing:5px;">${data.username.toUpperCase()}</h1>
+                                <div style="margin-top:5px; display:flex; gap:10px; flex-wrap: wrap;">
+                                    <span class="badge ${data.isCondoUser || (data.rotector && data.rotector.risk_level === 'High') ? 'badge-danger' : 'badge-neon'}">
+                                        COMMUNITY INDEX: ${data.isCondoUser || (data.rotector && data.rotector.risk_level === 'High') ? 'HIGH RISK' : (data.rotector ? data.rotector.risk_level.toUpperCase() : 'STABLE')}
+                                    </span>
+                                    ${data.rotector ? `<span class="badge" style="background:#111; border:1px solid var(--neon); color:var(--neon)">ROTECTOR: VERIFIED</span>` : ''}
+                                    ${data.isBanned ? '<span class="badge" style="background:var(--danger)">BANNED</span>' : ''}
+                                </div>
+                            </div>
+
+                            ${data.rotector ? `
+                            <div class="intel-section" style="background: rgba(0, 255, 136, 0.02); padding: 15px; border: 1px solid #1a1a1a;">
+                                <h5 style="color: #ffcc00; border-color: #ffcc00;"><i data-lucide="shield-alert"></i> ROTECTOR SECURITY SCAN</h5>
+                                <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                                    <div>
+                                        <label style="font-size:0.55rem; color:#444; display:block; margin-bottom:5px;">RISK ASSESSMENT</label>
+                                        <span style="color:${data.rotector.risk_level === 'High' ? 'var(--danger)' : 'var(--neon)'}; font-weight:bold; font-size:0.9rem;">${data.rotector.risk_level.toUpperCase()}</span>
+                                    </div>
+                                    <div>
+                                        <label style="font-size:0.55rem; color:#444; display:block; margin-bottom:5px;">THREAT FLAGS</label>
+                                        <span style="color:#fff;">${data.rotector.flags?.length || 0} DETECTED</span>
+                                    </div>
+                                </div>
+                                
+                                ${data.rotector.dangerous_groups?.length > 0 ? `
+                                    <div style="margin-bottom:10px;">
+                                        <label style="font-size:0.55rem; color:var(--danger); display:block; margin-bottom:5px;">DANGEROUS GROUP ASSOCIATIONS:</label>
+                                        <div style="font-size:0.65rem; color:#888;">${data.rotector.dangerous_groups.join(', ')}</div>
+                                    </div>
+                                ` : ''}
+
+                                ${data.rotector.dangerous_friends?.length > 0 ? `
+                                    <div>
+                                        <label style="font-size:0.55rem; color:var(--danger); display:block; margin-bottom:5px;">DANGEROUS CONTACTS DETECTED:</label>
+                                        <div style="font-size:0.65rem; color:#888;">${data.rotector.dangerous_friends.join(', ')}</div>
+                                    </div>
+                                ` : ''}
+                            </div>
+                            ` : ''}
+
+                            <div class="intel-section">
+                                <h5><i data-lucide="layers"></i> GROUP ASSIGNMENTS [${data.groups.length}]</h5>
+                                <div style="max-height: 160px; overflow-y: auto; background: #080808; padding: 10px; border: 1px solid #1a1a1a;">
+                                    ${data.groups.map(g => `
+                                        <div style="display:flex; align-items:center; gap:10px; padding:8px; border-bottom:1px solid #111; font-size:0.7rem;">
+                                            <img src="${g.icon || 'https://tr.rbxcdn.com/38c6edcf096a30366bc90e9d68a2d1d4/150/150/Avatar/Png'}" style="width:20px; height:20px; border-radius:3px; border:1px solid #222;">
+                                            <span style="color:#eee; flex:1;">${g.name}</span>
+                                            <span style="color:var(--neon)">${g.rank} <small style="color:#444">[${g.rankId}]</small></span>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+
+                            <div class="intel-section">
+                                <h5 style="display:flex; justify-content:space-between; align-items:center;">
+                                    <span><i data-lucide="shirt"></i> PERSONNEL OUTFITS [${data.outfits.length}]</span>
+                                    <button onclick="openDeepIntel('${data.username}', true)" 
+                                            class="refresh-outfits-btn"
+                                            style="background:rgba(0,255,136,0.05); border:1px solid var(--neon); color:var(--neon); padding:4px 10px; font-size:0.5rem; cursor:pointer; letter-spacing:1px; display:flex; align-items:center; gap:5px; text-transform:uppercase; font-weight:bold;">
+                                        <i data-lucide="refresh-cw" style="width:10px;"></i> REFRESH OUTFITS
+                                    </button>
+                                </h5>
+                                <div class="outfit-grid">
+                                    ${data.outfits.length > 0 ? 
+                                        data.outfits.map(o => `
+                                            <div class="outfit-card">
+                                                <img src="${o.thumbnail}" class="outfit-img" loading="lazy">
+                                                <span class="outfit-name" title="${o.name}">${o.name || "UNNAMED"}</span>
+                                            </div>
+                                        `).join('') : 
+                                        '<div style="grid-column: 1/-1; padding:20px; background:#080808; border:1px dashed #222; text-align:center; color:#444; font-size:0.65rem;">NO CUSTOM OUTFITS DETECTED (OR INVENTORY PRIVATE)</div>'
+                                    }
+                                </div>
+                            </div>
+
+                            <div class="intel-section">
+                                <h5><i data-lucide="award"></i> BADGE RECORD</h5>
+                                <div class="badge-grid">
+                                    ${data.badges.map(b => `
+                                        <div class="badge-item">
+                                            <img src="${b.icon || 'https://tr.rbxcdn.com/38c6edcf096a30366bc90e9d68a2d1d4/150/150/Avatar/Png'}" class="badge-icon">
+                                            <span title="${b.name}">${b.name.substring(0, 15)}...</span>
+                                        </div>
+                                    `).join('') || '<p style="color:#444; font-size:0.7rem;">No significant badges found.</p>'}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                refreshIcons();
+            } catch (err) {
+                content.innerHTML = `<div style="color:var(--danger); text-align:center; padding:50px;">UPLINK FAILED: ${err.message}</div>`;
+            }
+        }
+
+        function closeIntelModal() {
+            document.getElementById('intel-modal').style.display = 'none';
+        }
+
+        function toggleSidebar() {
+            const dashboard = document.getElementById('dashboard-view');
+            dashboard.classList.toggle('collapsed');
+            
+            const btn = document.getElementById('sidebar-toggle');
+            const newIconName = dashboard.classList.contains('collapsed') ? 'chevrons-right' : 'menu';
+            btn.innerHTML = `<i data-lucide="${newIconName}"></i>`;
+            refreshIcons();
+        }
+
+        function toggleSubRow(rowId) {
+            const subRow = document.getElementById(`subrow-${rowId}`);
+            const btn = document.getElementById(`btn-${rowId}`);
+            if (subRow) {
+                subRow.classList.toggle('active');
+                btn.classList.toggle('active');
+            }
+        }
+
+        function terminateSession() {
+            localStorage.removeItem('gsmc_jwt');
+            location.reload();
         }
 
         function setupTabs() {
@@ -418,7 +724,27 @@
         };
 
         document.getElementById('login-btn').onclick = attemptLogin;
-        refreshIcons();
+
+        // Auto-login check
+        window.addEventListener('load', async () => {
+            const token = localStorage.getItem('gsmc_jwt');
+            if (token) {
+                try {
+                    const res = await fetch(`${CONFIG.API_BASE}/auth/verify`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    const data = await res.json();
+                    if (res.ok) {
+                        initializeVanguard(data.unitScope);
+                    } else {
+                        localStorage.removeItem('gsmc_jwt');
+                    }
+                } catch (e) {
+                    console.error("Auth verify failed", e);
+                }
+            }
+            refreshIcons();
+        });
     </script>
 </body>
 </html>
