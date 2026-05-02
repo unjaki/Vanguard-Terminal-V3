@@ -2,6 +2,7 @@ require('dotenv').config(); // MUST BE LINE 1
 const CONFIG = {
     API_BASE: ""
 };
+const path = require('path');
 const express = require('express');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
@@ -14,20 +15,17 @@ const fs = require('fs').promises;
 const { google } = require('googleapis');
 
 // 1. Models
-const User = require('./models/User'); 
-const Division = require('./models/divisions');
+const User = require(path.join(__dirname, 'models', 'User.js')); 
+const Division = require(path.join(__dirname, 'models', 'divisions.js'));
+
+const ROBLOX_PROXY = process.env.ROBLOX_PROXY || "roblox.com";
 
 const app = express();
 
 // 2. Middleware & Cache Setup
 app.use(cors());
 app.use(express.json()); // Essential for POST requests
-app.use(express.static('public'));
-
-// Root route handler
-app.get('/', (req, res) => {
-    res.sendFile(__dirname + '/public/index.html');
-});
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Google Sheets Auth Helper
 const getSheetsClient = () => {
@@ -133,11 +131,11 @@ const protectTier = (requiredTier) => {
 };
 
 // 4. Database Connection
-if (!process.env.MONGO_URL) {
-    console.error("❌ CRITICAL: MONGO_URL is missing in environment variables!");
+if (!process.env.MONGODB_URI) {
+    console.error("❌ CRITICAL: MONGODB_URI is missing in environment variables!");
 } else {
     console.log("📡 Attempting MongoDB Uplink...");
-    mongoose.connect(process.env.MONGO_URL)
+    mongoose.connect(process.env.MONGODB_URI)
     .then(async () => {
         console.log("✅ MongoDB Connected Successfully");
         
@@ -284,11 +282,11 @@ app.get('/group-info/:groupId', protectTier(2), async (req, res) => {
     try {
         console.log(`[INTEL] Fetching Roblox Data: ${groupId}`);
         // 1. Fetch main group metadata
-        const groupRes = await axios.get(`https://groups.roblox.com/v1/groups/${groupId}`, { timeout: 5000 });
+        const groupRes = await axios.get(`https://groups.${ROBLOX_PROXY}/v1/groups/${groupId}`, { timeout: 5000 });
         const data = groupRes.data;
 
         // 2. Fetch roles (ranks)
-        const rolesRes = await axios.get(`https://groups.roblox.com/v1/groups/${groupId}/roles`, { timeout: 5000 });
+        const rolesRes = await axios.get(`https://groups.${ROBLOX_PROXY}/v1/groups/${groupId}/roles`, { timeout: 5000 });
         const roles = rolesRes.data.roles.sort((a, b) => b.rank - a.rank); // Sort by rank level desc
 
         const result = {
@@ -346,7 +344,7 @@ app.get('/verify-member/:unitName/:username', protectTier(2), async (req, res) =
         let userData;
         try {
             // PHASE A: Exact Username Lookup (Robust & High Rate Limit)
-            const exactRes = await axios.post('https://users.roblox.com/v1/usernames/users', {
+            const exactRes = await axios.post(`https://users.${ROBLOX_PROXY}/v1/usernames/users`, {
                 usernames: [username.trim()],
                 excludeBannedUsers: false
             }, { timeout: 5000 });
@@ -357,7 +355,7 @@ app.get('/verify-member/:unitName/:username', protectTier(2), async (req, res) =
             if (!userData) {
                 console.log(`[SCAN] No exact match for "${username}". Attempting fuzzy search...`);
                 // limit=1 is more economical for fuzzy search
-                const searchRes = await axios.get(`https://users.roblox.com/v1/users/search?keyword=${encodeURIComponent(username.trim())}&limit=1`, { timeout: 5000 });
+                const searchRes = await axios.get(`https://users.${ROBLOX_PROXY}/v1/users/search?keyword=${encodeURIComponent(username.trim())}&limit=1`, { timeout: 5000 });
                 userData = searchRes.data.data[0];
             }
         } catch (rbErr) {
@@ -411,7 +409,7 @@ app.get('/verify-member/:unitName/:username', protectTier(2), async (req, res) =
         const NS_GROUP_ID = "1008942731";
 
         try {
-            const rbRes = await axios.get(`https://groups.roblox.com/v1/users/${rbId}/groups/roles`);
+            const rbRes = await axios.get(`https://groups.${ROBLOX_PROXY}/v1/users/${rbId}/groups/roles`);
             const groups = rbRes.data.data;
             
             groupData = groups.find(g => g.group.id == unit.groupId);
@@ -428,7 +426,7 @@ app.get('/verify-member/:unitName/:username', protectTier(2), async (req, res) =
             let iconsMap = {};
             if (groupIds) {
                 try {
-                    const iconRes = await axios.get(`https://thumbnails.roblox.com/v1/groups/icons?groupIds=${groupIds}&size=150x150&format=Png&isCircular=false`, { timeout: 5000 });
+                    const iconRes = await axios.get(`https://thumbnails.${ROBLOX_PROXY}/v1/groups/icons?groupIds=${groupIds}&size=150x150&format=Png&isCircular=false`, { timeout: 5000 });
                     iconRes.data?.data?.forEach(i => {
                         if (i.targetId) iconsMap[i.targetId] = i.imageUrl;
                     });
@@ -562,7 +560,7 @@ app.get('/deep-intel/:username', protectTier(2), async (req, res) => {
         // 1. Resolve Identity
         let userData;
         try {
-            const exactRes = await axios.post('https://users.roblox.com/v1/usernames/users', {
+            const exactRes = await axios.post(`https://users.${ROBLOX_PROXY}/v1/usernames/users`, {
                 usernames: [username.trim()],
                 excludeBannedUsers: false
             }, { timeout: 5000 });
@@ -601,7 +599,7 @@ app.get('/deep-intel/:username', protectTier(2), async (req, res) => {
                     // Aggressive threshold: Use up to 9.8s of the 10s window
                     if (Date.now() - startTime > 9800) break; 
 
-                    const res = await walkerAxios.get(`https://badges.roblox.com/v1/users/${userId}/badges?limit=100&cursor=${cursor}`);
+                    const res = await walkerAxios.get(`https://badges.${ROBLOX_PROXY}/v1/users/${userId}/badges?limit=100&cursor=${cursor}`);
                     const data = res.data;
                     if (!data) break;
 
@@ -630,11 +628,11 @@ app.get('/deep-intel/:username', protectTier(2), async (req, res) => {
         console.log(`[INTEL] Batch 1: Metadata, Groups, RoTector`);
         
         const [groupsRes, detailedRes, rotectorRes] = await Promise.all([
-            axios.get(`https://groups.roblox.com/v1/users/${userId}/groups/roles`, { timeout: 10000 }).catch(e => {
+            axios.get(`https://groups.${ROBLOX_PROXY}/v1/users/${userId}/groups/roles`, { timeout: 10000 }).catch(e => {
                 if (e.response?.status === 429) console.warn("[RATELIMIT] Groups API throttled");
                 return { data: { data: [] } };
             }),
-            axios.get(`https://users.roblox.com/v1/users/${userId}`, { timeout: 10000 }).catch(e => {
+            axios.get(`https://users.${ROBLOX_PROXY}/v1/users/${userId}`, { timeout: 10000 }).catch(e => {
                 if (e.response?.status === 429) console.warn("[RATELIMIT] Users API throttled");
                 return { data: {} };
             }),
@@ -652,9 +650,9 @@ app.get('/deep-intel/:username', protectTier(2), async (req, res) => {
         // 3. Fetch Visual Data & Outfits (Batch 2)
         console.log(`[INTEL] Batch 2: Visuals, Outfits`);
         const [avatarRes, bustRes, outfitRes] = await Promise.all([
-            axios.get(`https://thumbnails.roblox.com/v1/users/avatar?userIds=${userId}&size=420x420&format=Png&isCircular=false`, { timeout: 10000 }).catch(e => ({ data: { data: [{ imageUrl: "" }] } })),
-            axios.get(`https://thumbnails.roblox.com/v1/users/avatar-bust?userIds=${userId}&size=150x150&format=Png&isCircular=false`, { timeout: 10000 }).catch(e => ({ data: { data: [{ imageUrl: "" }] } })),
-            axios.get(`https://avatar.roblox.com/v1/users/${userId}/outfits?isEditable=true&itemsPerPage=50`, { timeout: 10000 }).catch(e => {
+            axios.get(`https://thumbnails.${ROBLOX_PROXY}/v1/users/avatar?userIds=${userId}&size=420x420&format=Png&isCircular=false`, { timeout: 10000 }).catch(e => ({ data: { data: [{ imageUrl: "" }] } })),
+            axios.get(`https://thumbnails.${ROBLOX_PROXY}/v1/users/avatar-bust?userIds=${userId}&size=150x150&format=Png&isCircular=false`, { timeout: 10000 }).catch(e => ({ data: { data: [{ imageUrl: "" }] } })),
+            axios.get(`https://avatar.${ROBLOX_PROXY}/v1/users/${userId}/outfits?isEditable=true&itemsPerPage=50`, { timeout: 10000 }).catch(e => {
                 if (e.response?.status === 429) console.warn("[RATELIMIT] Outfits API throttled");
                 return { data: { data: [] } };
             })
@@ -680,7 +678,7 @@ app.get('/deep-intel/:username', protectTier(2), async (req, res) => {
             const fetchGroupIcons = async () => {
                 if (!groupIds) return;
                 try {
-                    const res = await axios.get(`https://thumbnails.roblox.com/v1/groups/icons`, {
+                    const res = await axios.get(`https://thumbnails.${ROBLOX_PROXY}/v1/groups/icons`, {
                         params: { groupIds, size: '150x150', format: 'Png', isCircular: false },
                         timeout: 8000
                     });
@@ -694,7 +692,7 @@ app.get('/deep-intel/:username', protectTier(2), async (req, res) => {
             const fetchBadgeIcons = async () => {
                 if (!badgeIds) return;
                 try {
-                    const res = await axios.get(`https://thumbnails.roblox.com/v1/badges/icons`, {
+                    const res = await axios.get(`https://thumbnails.${ROBLOX_PROXY}/v1/badges/icons`, {
                         params: { badgeIds, size: '150x150', format: 'Png', isCircular: false },
                         timeout: 8000
                     });
@@ -719,7 +717,7 @@ app.get('/deep-intel/:username', protectTier(2), async (req, res) => {
             if (outfitIds) {
                 try {
                     console.log(`[INTEL] Fetching outfit thumbnails for IDs: ${outfitIds.substring(0, 30)}...`);
-                    const outfitThumbRes = await axios.get(`https://thumbnails.roblox.com/v1/users/outfits?userOutfitIds=${outfitIds}&size=150x150&format=Png&isCircular=false`, { timeout: 15000 });
+                    const outfitThumbRes = await axios.get(`https://thumbnails.${ROBLOX_PROXY}/v1/users/outfits?userOutfitIds=${outfitIds}&size=150x150&format=Png&isCircular=false`, { timeout: 15000 });
                     
                     outfits = filteredOutfits.map(o => {
                         const thumb = outfitThumbRes.data?.data?.find(t => t.targetId === o.id);
@@ -923,22 +921,19 @@ app.get('/health', (req, res) => {
 
 app.get('/system/version-log', async (req, res) => {
     try {
-        const data = await fs.readFile('./version-log.json', 'utf8');
+        const data = await fs.readFile(path.join(__dirname, 'version-log.json'), 'utf8');
         res.json(JSON.parse(data));
     } catch (err) {
         res.json([{ version: "V.1", date: "Unknown", notes: ["System Active"] }]);
     }
 });
 
-// --- END OF ROUTES ---
-
-// Catch-all route to serve index.html for SPA support
-app.get('*', (req, res) => {
-    res.sendFile(__dirname + '/public/index.html');
-});
-
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`GSMC Terminal active on port ${PORT}`);
-});
+if (require.main === module) {
+    app.listen(PORT, '0.0.0.0', () => {
+        console.log(`GSMC Terminal active on port ${PORT}`);
+    });
+}
+
+module.exports = app;

@@ -338,20 +338,9 @@
                     </div>
                 </div>
                 <div class="intel-card">
-                    <p style="color: #666; font-size: 0.8rem;">Terminal Version: 3.7.5-OPERATIONAL</p>
+                    <p style="color: #666; font-size: 0.8rem;">Terminal Version: 3.6.5-OPERATIONAL</p>
                     <p style="color: #666; font-size: 0.8rem;">Uplink Status: <span style="color: var(--neon)">ENCRYPTED</span></p>
                     <p style="color: #666; font-size: 0.8rem;">Assigned Scope: <span id="current-scope-display" style="color: #fff; font-weight: bold;">-</span></p>
-                    <div id="remote-uplink-warning" class="hidden" style="margin-top: 15px; padding: 10px; background: rgba(0,255,242,0.05); border: 1px solid rgba(0,255,242,0.2); border-radius: 4px;">
-                         <p style="color: var(--neon); font-size: 0.6rem; margin: 0; line-height: 1.4; font-weight: 600;">🛰️ REMOTE DEPLOYMENT DETECTED: Establish backend bridge to enable intelligence downlink.</p>
-                    </div>
-                    <div style="margin-top: 15px; border-top: 1px solid #222; padding-top: 15px;">
-                        <label style="font-size: 0.61rem; color: #555; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 800;">Intelligence Bridge Proxy</label>
-                        <div style="display: flex; gap: 5px; margin-top: 8px;">
-                            <input type="text" id="api-base-override" placeholder="https://your-backend.railway.app" style="flex: 1; font-size: 0.68rem; background: #0c0c0c; border: 1px solid #222; color: #fff; padding: 8px; font-family: monospace; outline: none;" onfocus="this.style.borderColor='var(--neon)'" onblur="this.style.borderColor='#222'">
-                        </div>
-                        <button onclick="saveApiOverride()" style="margin-top: 8px; font-size: 0.62rem; background: #111; color: var(--neon); border: 1px solid #222; padding: 8px; width: 100%; cursor: pointer; transition: all 0.2s; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">[ ESTABLISH BRIDGE ]</button>
-                        <p style="font-size: 0.55rem; color: #444; margin-top: 8px; text-align: center; font-style: italic;">Provide the URL of your Node.js backend server.</p>
-                    </div>
                 </div>
             </div>
         </main>
@@ -377,42 +366,7 @@
     </div>
 
     <script>
-        const CONFIG = { 
-            API_BASE: window.location.origin,
-            AZURE_DEFAULT: "https://vanguard-backend-e9hdhzege4ctcvae.eastasia-01.azurewebsites.net",
-            get isRemote() { 
-                return window.location.hostname.includes('vercel.app') || 
-                       window.location.hostname.includes('azurestaticapps.net') ||
-                       (window.location.hostname !== 'localhost' && !window.location.hostname.includes('ais-dev'));
-            }
-        };
-        
-        // Manual API override for remote deployments
-        const savedApi = localStorage.getItem('gsmc_api_override');
-        if (savedApi) {
-            CONFIG.API_BASE = savedApi;
-        } else if (CONFIG.isRemote) {
-            CONFIG.API_BASE = CONFIG.AZURE_DEFAULT;
-        }
-
-        if (CONFIG.isRemote && !savedApi) {
-            window.addEventListener('load', () => {
-                const warn = document.getElementById('remote-uplink-warning');
-                if (warn) warn.classList.remove('hidden');
-            });
-        }
-
-        function saveApiOverride() {
-            const val = document.getElementById('api-base-override').value.trim();
-            if (val) {
-                localStorage.setItem('gsmc_api_override', val);
-                alert("UPLINK CONFIGURED. REBOOTING SYSTEM...");
-                window.location.reload();
-            } else {
-                localStorage.removeItem('gsmc_api_override');
-                window.location.reload();
-            }
-        }
+        const CONFIG = { API_BASE: "" };
         
         // Refresh icons
         function refreshIcons() {
@@ -456,7 +410,6 @@
         const SCOPES = {
             "ALL": [UNITS.GSMC, UNITS.CBRN, UNITS.NS],
             "GSMC": [UNITS.GSMC, UNITS.CBRN, UNITS.NS],
-            "GENERAL STAFF": [UNITS.GSMC, UNITS.CBRN, UNITS.NS],
             "CBRN": [UNITS.CBRN, UNITS.NS]
         };
 
@@ -464,8 +417,6 @@
 
         function initializeVanguard(scope, tier) {
             userTier = tier || 0;
-            const normalizedScope = (scope || "CBRN").toUpperCase();
-            
             document.getElementById('login-view').classList.add('hidden');
             document.getElementById('dashboard-view').style.display = 'flex';
             
@@ -482,14 +433,11 @@
             setupTabs();
             refreshIcons();
             
-            document.getElementById('current-scope-display').innerText = normalizedScope;
-            if (document.getElementById('api-base-override')) {
-                document.getElementById('api-base-override').value = localStorage.getItem('gsmc_api_override') || "";
-            }
+            document.getElementById('current-scope-display').innerText = (scope || "GUEST").toUpperCase();
 
             // Setup Scoped Scan Options
             const scanSelect = document.getElementById('scan-unit-select');
-            const availableUnits = SCOPES[normalizedScope] || SCOPES["CBRN"]; // Default to restrictive
+            const availableUnits = SCOPES[scope] || SCOPES["CBRN"]; // Default to restrictive
             
             scanSelect.innerHTML = availableUnits.map(u => 
                 `<option value="${u.id}">${u.name}</option>`
@@ -782,13 +730,9 @@
                 const res = await fetch(`${CONFIG.API_BASE}/group-info/${groupId}`, {
                     headers: { 'Authorization': `Bearer ${localStorage.getItem('gsmc_jwt')}` }
                 });
-                
-                if (!res.ok) {
-                    const errorData = await res.json().catch(() => ({}));
-                    throw new Error(errorData.error || `HTTP ${res.status}: ${res.statusText}`);
-                }
-
                 const data = await res.json();
+                
+                if (!res.ok) throw new Error(data.error || 'Failed');
 
                 document.getElementById('intel-group-name').innerText = data.name.toUpperCase();
                 document.getElementById('intel-group-desc').innerText = data.description || "No description provided.";
@@ -806,9 +750,8 @@
                 display.style.opacity = '1';
                 refreshIcons();
             } catch (e) {
-                console.error("[UPLINK ERROR]", e);
-                const msg = e.message || "Unknown Connection Error";
-                alert(`Intel Retrieval Failed\n\nStatus: ${msg}\n\nNote: For remote hosting (Azure), ensure the backend server is operational and API_BASE is correctly mapped.`);
+                console.error(e);
+                alert("Intel Retrieval Failed");
             }
         }
 
