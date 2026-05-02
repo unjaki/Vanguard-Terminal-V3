@@ -1,5 +1,62 @@
 [
   {
+    "version": "3.7.1",
+    "date": "2026-05-02",
+    "notes": [
+      "Deployment Readiness Calibration: Optimized for Azure App Service (Node 22 / Linux).",
+      "Synchronized system descriptors for operative hand-off.",
+      "Hardened backend-to-frontend bridging logic."
+    ],
+    "author": "Vanguard-AI"
+  },
+    "date": "2026-05-02",
+    "notes": [
+      "Hybrid Deployment Master: Optimized protocols for Azure F1 (Free Tier) backend bridging.",
+      "Visual Interface Hardening: Refined Uplink Proxy UI with focus-state illumination.",
+      "Synchronized system diagnostic messages for multi-cloud deployments."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "3.6.9",
+    "date": "2026-05-02",
+    "notes": [
+      "Streamlined Azure Multi-Service Deployment: Refined Uplink Proxy UI for easier backend bridging.",
+      "Enhanced Azure Static Web Apps diagnostics and auto-detection logic.",
+      "Stabilized personnel intelligence downlink for remote operatives."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "3.6.8",
+    "date": "2026-05-02",
+    "notes": [
+      "Azure Compatibility Protocols: Refined Remote Uplink UI for hybrid hosting environments.",
+      "Synchronized system-wide deployment diagnostics for Azure Web Apps / Static Web Apps.",
+      "Hardened backend connectivity logic."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "3.6.7",
+    "date": "2026-05-02",
+    "notes": [
+      "Scope Normalization: Fixed legacy 'General staff' scope mapping to prevent unintended CBRN fallbacks.",
+      "Enhanced login diagnostics and system initialization protocols."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "3.6.6",
+    "date": "2026-05-02",
+    "notes": [
+      "Remote Uplink Intelligence: Added manual proxy configuration for hybrid hosting (Azure Static Web Apps).",
+      "Enhanced diagnostics: Provided detailed HTTP error codes for failed intel retrievals.",
+      "Synchronized system-wide reconnaissance parity for remote operatives."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
     "version": "3.6.5",
     "date": "2026-05-02",
     "notes": [
