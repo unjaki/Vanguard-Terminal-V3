@@ -1,5 +1,15 @@
 [
   {
+    "version": "3.7.5",
+    "date": "2026-05-02",
+    "notes": [
+      "Vercel Ecosystem Integration: Established vercel.json manifest for full-stack routing.",
+      "Express Protocol Hardening: Integrated root and wildcard handlers for remote SPA support.",
+      "Optimized static file serving for serverless environments."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
     "version": "3.7.4",
     "date": "2026-05-02",
     "notes": [

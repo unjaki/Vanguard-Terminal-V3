@@ -24,6 +24,11 @@ app.use(cors());
 app.use(express.json()); // Essential for POST requests
 app.use(express.static('public'));
 
+// Root route handler
+app.get('/', (req, res) => {
+    res.sendFile(__dirname + '/public/index.html');
+});
+
 // Google Sheets Auth Helper
 const getSheetsClient = () => {
     try {
@@ -923,6 +928,13 @@ app.get('/system/version-log', async (req, res) => {
     } catch (err) {
         res.json([{ version: "V.1", date: "Unknown", notes: ["System Active"] }]);
     }
+});
+
+// --- END OF ROUTES ---
+
+// Catch-all route to serve index.html for SPA support
+app.get('*', (req, res) => {
+    res.sendFile(__dirname + '/public/index.html');
 });
 
 const PORT = process.env.PORT || 3000;
