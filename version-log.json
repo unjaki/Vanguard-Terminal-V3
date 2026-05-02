@@ -1,5 +1,15 @@
 [
   {
+    "version": "3.7.2",
+    "date": "2026-05-02",
+    "notes": [
+      "Tactical Link Invariant: Integrated hardcoded Azure Backend fallback for remote operatives.",
+      "Optimized uplink retry protocols for cross-region intelligence retrieval.",
+      "Personnel badge contrast verification complete."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
     "version": "3.7.1",
     "date": "2026-05-02",
     "notes": [
@@ -9,6 +19,8 @@
     ],
     "author": "Vanguard-AI"
   },
+  {
+    "version": "3.7.0",
     "date": "2026-05-02",
     "notes": [
       "Hybrid Deployment Master: Optimized protocols for Azure F1 (Free Tier) backend bridging.",
