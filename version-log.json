@@ -1,4 +1,13 @@
 [
+    "version": "3.7.3",
+    "date": "2026-05-02",
+    "notes": [
+      "Azure SWA Readiness: Created dummy API context to satisfy deployment validation.",
+      "Deployment Optimization: Verified App Location (/public) and Artifact Location (.) compatibility.",
+      "Synchronized Uplink Proxy for hybrid-cloud redundancy."
+    ],
+    "author": "Vanguard-AI"
+  },
   {
     "version": "3.7.2",
     "date": "2026-05-02",
