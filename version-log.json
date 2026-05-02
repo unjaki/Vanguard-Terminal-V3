@@ -1,4 +1,15 @@
 [
+  {
+    "version": "3.7.4",
+    "date": "2026-05-02",
+    "notes": [
+      "Vercel Deployment Protocol: Removed Azure dependencies and streamlined Hybrid Bridge UI.",
+      "Intelligence bridge auto-detection logic expanded for Vercel and generic remote hosts.",
+      "Decommissioned Azure-specific configuration manifests."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
     "version": "3.7.3",
     "date": "2026-05-02",
     "notes": [

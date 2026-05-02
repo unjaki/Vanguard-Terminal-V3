@@ -1,2 +1,0 @@
-// This folder exists to satisfy Azure Static Web App deployment requirements.
-// The actual backend is hosted on Azure App Service.

@@ -338,19 +338,19 @@
                     </div>
                 </div>
                 <div class="intel-card">
-                    <p style="color: #666; font-size: 0.8rem;">Terminal Version: 3.7.3-OPERATIONAL</p>
+                    <p style="color: #666; font-size: 0.8rem;">Terminal Version: 3.7.4-OPERATIONAL</p>
                     <p style="color: #666; font-size: 0.8rem;">Uplink Status: <span style="color: var(--neon)">ENCRYPTED</span></p>
                     <p style="color: #666; font-size: 0.8rem;">Assigned Scope: <span id="current-scope-display" style="color: #fff; font-weight: bold;">-</span></p>
-                    <div id="azure-uplink-warning" class="hidden" style="margin-top: 15px; padding: 10px; background: rgba(0,255,242,0.05); border: 1px solid rgba(0,255,242,0.2); border-radius: 4px;">
-                         <p style="color: var(--neon); font-size: 0.6rem; margin: 0; line-height: 1.4; font-weight: 600;">🛰️ AZURE HYBRID MODE: Establish backend link below to enable personnel recon.</p>
+                    <div id="remote-uplink-warning" class="hidden" style="margin-top: 15px; padding: 10px; background: rgba(0,255,242,0.05); border: 1px solid rgba(0,255,242,0.2); border-radius: 4px;">
+                         <p style="color: var(--neon); font-size: 0.6rem; margin: 0; line-height: 1.4; font-weight: 600;">🛰️ REMOTE DEPLOYMENT DETECTED: Establish backend bridge to enable intelligence downlink.</p>
                     </div>
                     <div style="margin-top: 15px; border-top: 1px solid #222; padding-top: 15px;">
-                        <label style="font-size: 0.61rem; color: #555; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 800;">Remote Uplink Proxy</label>
+                        <label style="font-size: 0.61rem; color: #555; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 800;">Intelligence Bridge Proxy</label>
                         <div style="display: flex; gap: 5px; margin-top: 8px;">
-                            <input type="text" id="api-base-override" placeholder="https://vanguard-backend-e9hdhzege4ctcvae.eastasia-01.azurewebsites.net" style="flex: 1; font-size: 0.68rem; background: #0c0c0c; border: 1px solid #222; color: #fff; padding: 8px; font-family: monospace; outline: none;" onfocus="this.style.borderColor='var(--neon)'" onblur="this.style.borderColor='#222'">
+                            <input type="text" id="api-base-override" placeholder="https://your-backend.railway.app" style="flex: 1; font-size: 0.68rem; background: #0c0c0c; border: 1px solid #222; color: #fff; padding: 8px; font-family: monospace; outline: none;" onfocus="this.style.borderColor='var(--neon)'" onblur="this.style.borderColor='#222'">
                         </div>
-                        <button onclick="saveApiOverride()" style="margin-top: 8px; font-size: 0.62rem; background: #111; color: var(--neon); border: 1px solid #222; padding: 8px; width: 100%; cursor: pointer; transition: all 0.2s; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">[ Establish Uplink ]</button>
-                        <p style="font-size: 0.55rem; color: #444; margin-top: 8px; text-align: center; font-style: italic;">Required for Azure (F1/Free) Hybrid Deployments.</p>
+                        <button onclick="saveApiOverride()" style="margin-top: 8px; font-size: 0.62rem; background: #111; color: var(--neon); border: 1px solid #222; padding: 8px; width: 100%; cursor: pointer; transition: all 0.2s; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">[ ESTABLISH BRIDGE ]</button>
+                        <p style="font-size: 0.55rem; color: #444; margin-top: 8px; text-align: center; font-style: italic;">Provide the URL of your Node.js backend server.</p>
                     </div>
                 </div>
             </div>
@@ -380,10 +380,14 @@
         const CONFIG = { 
             API_BASE: window.location.origin,
             AZURE_DEFAULT: "https://vanguard-backend-e9hdhzege4ctcvae.eastasia-01.azurewebsites.net",
-            get isRemote() { return window.location.hostname.includes('azurestaticapps.net'); }
+            get isRemote() { 
+                return window.location.hostname.includes('vercel.app') || 
+                       window.location.hostname.includes('azurestaticapps.net') ||
+                       (window.location.hostname !== 'localhost' && !window.location.hostname.includes('ais-dev'));
+            }
         };
         
-        // Manual API override for remote deployments (Azure, etc)
+        // Manual API override for remote deployments
         const savedApi = localStorage.getItem('gsmc_api_override');
         if (savedApi) {
             CONFIG.API_BASE = savedApi;
@@ -393,7 +397,7 @@
 
         if (CONFIG.isRemote && !savedApi) {
             window.addEventListener('load', () => {
-                const warn = document.getElementById('azure-uplink-warning');
+                const warn = document.getElementById('remote-uplink-warning');
                 if (warn) warn.classList.remove('hidden');
             });
         }
