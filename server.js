@@ -20,9 +20,28 @@ const Division = require(path.join(__dirname, 'models', 'divisions.js'));
 
 const ROBLOX_PROXY = process.env.ROBLOX_PROXY || "roblox.com";
 
+const rbApi = (subdomain, endpoint) => {
+    if (!ROBLOX_PROXY || ROBLOX_PROXY === "roblox.com") {
+        return `https://${subdomain}.roblox.com${endpoint}`;
+    }
+    
+    // Normalize proxy host (remove trailing slash and protocol)
+    let proxyHost = ROBLOX_PROXY.trim();
+    proxyHost = proxyHost.replace(/^https?:\/\//, '').replace(/\/$/, '');
+    
+    // Ensure endpoint starts with /
+    const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    
+    // Subdomain-based proxy format: https://subdomain.proxy.com/path
+    return `https://${subdomain}.${proxyHost}${path}`;
+};
+
 const app = express();
 
 // 2. Middleware & Cache Setup
+const axiosAgent = new https.Agent({ rejectUnauthorized: false });
+axios.defaults.httpsAgent = axiosAgent;
+
 app.use(cors());
 app.use(express.json()); // Essential for POST requests
 app.use(express.static(path.join(__dirname, 'public')));
@@ -282,11 +301,11 @@ app.get('/group-info/:groupId', protectTier(2), async (req, res) => {
     try {
         console.log(`[INTEL] Fetching Roblox Data: ${groupId}`);
         // 1. Fetch main group metadata
-        const groupRes = await axios.get(`https://groups.${ROBLOX_PROXY}/v1/groups/${groupId}`, { timeout: 5000 });
+        const groupRes = await axios.get(rbApi('groups', `/v1/groups/${groupId}`), { timeout: 5000 });
         const data = groupRes.data;
 
         // 2. Fetch roles (ranks)
-        const rolesRes = await axios.get(`https://groups.${ROBLOX_PROXY}/v1/groups/${groupId}/roles`, { timeout: 5000 });
+        const rolesRes = await axios.get(rbApi('groups', `/v1/groups/${groupId}/roles`), { timeout: 5000 });
         const roles = rolesRes.data.roles.sort((a, b) => b.rank - a.rank); // Sort by rank level desc
 
         const result = {
@@ -320,10 +339,15 @@ app.get('/group-info/:groupId', protectTier(2), async (req, res) => {
                 message: 'Roblox is limiting requests. Please try again in a few minutes.' 
             });
         }
-        console.error('Group API Error:', error.message);
+        const requestUrl = error.config?.url || "Unknown URL";
+        console.error(`Group API Error [${requestUrl}]:`, error.message);
+        if (error.response) {
+            console.error('Response Data:', JSON.stringify(error.response.data));
+        }
         res.status(500).json({ 
             error: 'Failed to fetch unit data', 
-            message: error.message 
+            message: error.message,
+            debug_url: requestUrl
         });
     }
 });
@@ -344,7 +368,7 @@ app.get('/verify-member/:unitName/:username', protectTier(2), async (req, res) =
         let userData;
         try {
             // PHASE A: Exact Username Lookup (Robust & High Rate Limit)
-            const exactRes = await axios.post(`https://users.${ROBLOX_PROXY}/v1/usernames/users`, {
+            const exactRes = await axios.post(rbApi('users', '/v1/usernames/users'), {
                 usernames: [username.trim()],
                 excludeBannedUsers: false
             }, { timeout: 5000 });
@@ -355,11 +379,13 @@ app.get('/verify-member/:unitName/:username', protectTier(2), async (req, res) =
             if (!userData) {
                 console.log(`[SCAN] No exact match for "${username}". Attempting fuzzy search...`);
                 // limit=1 is more economical for fuzzy search
-                const searchRes = await axios.get(`https://users.${ROBLOX_PROXY}/v1/users/search?keyword=${encodeURIComponent(username.trim())}&limit=1`, { timeout: 5000 });
+                const searchRes = await axios.get(rbApi('users', `/v1/users/search?keyword=${encodeURIComponent(username.trim())}&limit=1`), { timeout: 5000 });
                 userData = searchRes.data.data[0];
             }
         } catch (rbErr) {
             const status = rbErr.response?.status;
+            const requestUrl = rbErr.config?.url || "Unknown URL";
+            
             if (status === 429) {
                 console.warn(`[SCAN] ⚠️ Roblox Rate Limit (429) Enforced.`);
                 return res.status(429).json({ message: "Uplink Congested" });
@@ -368,8 +394,11 @@ app.get('/verify-member/:unitName/:username', protectTier(2), async (req, res) =
                 console.warn(`[SCAN] Roblox API rejected request (400): Malformed username "${username}"`);
                 return res.status(404).json({ message: "Not in group or name typo" });
             }
-            console.error(`[SCAN] Roblox API Error: ${status || rbErr.message}`);
-            return res.status(500).json({ message: "Uplink Error" });
+            console.error(`[SCAN] Roblox API Error: ${status || rbErr.message} at ${requestUrl}`);
+            if (rbErr.response) {
+                console.error('Response Data:', JSON.stringify(rbErr.response.data));
+            }
+            return res.status(500).json({ message: `Uplink Error ${status || ''}`, debug_url: requestUrl });
         }
 
         if (!userData) {
@@ -409,7 +438,7 @@ app.get('/verify-member/:unitName/:username', protectTier(2), async (req, res) =
         const NS_GROUP_ID = "1008942731";
 
         try {
-            const rbRes = await axios.get(`https://groups.${ROBLOX_PROXY}/v1/users/${rbId}/groups/roles`);
+            const rbRes = await axios.get(rbApi('groups', `/v1/users/${rbId}/groups/roles`));
             const groups = rbRes.data.data;
             
             groupData = groups.find(g => g.group.id == unit.groupId);
@@ -426,7 +455,7 @@ app.get('/verify-member/:unitName/:username', protectTier(2), async (req, res) =
             let iconsMap = {};
             if (groupIds) {
                 try {
-                    const iconRes = await axios.get(`https://thumbnails.${ROBLOX_PROXY}/v1/groups/icons?groupIds=${groupIds}&size=150x150&format=Png&isCircular=false`, { timeout: 5000 });
+                    const iconRes = await axios.get(rbApi('thumbnails', `/v1/groups/icons?groupIds=${groupIds}&size=150x150&format=Png&isCircular=false`), { timeout: 5000 });
                     iconRes.data?.data?.forEach(i => {
                         if (i.targetId) iconsMap[i.targetId] = i.imageUrl;
                     });
@@ -560,7 +589,7 @@ app.get('/deep-intel/:username', protectTier(2), async (req, res) => {
         // 1. Resolve Identity
         let userData;
         try {
-            const exactRes = await axios.post(`https://users.${ROBLOX_PROXY}/v1/usernames/users`, {
+            const exactRes = await axios.post(rbApi('users', '/v1/usernames/users'), {
                 usernames: [username.trim()],
                 excludeBannedUsers: false
             }, { timeout: 5000 });
@@ -589,7 +618,7 @@ app.get('/deep-intel/:username', protectTier(2), async (req, res) => {
             // Create a high-performance walker client with keepAlive
             const walkerAxios = axios.create({
                 httpAgent: new http.Agent({ keepAlive: true, maxSockets: 100 }),
-                httpsAgent: new https.Agent({ keepAlive: true, maxSockets: 100 }),
+                httpsAgent: new https.Agent({ keepAlive: true, maxSockets: 100, rejectUnauthorized: false }),
                 timeout: 5000
             });
 
@@ -599,7 +628,7 @@ app.get('/deep-intel/:username', protectTier(2), async (req, res) => {
                     // Aggressive threshold: Use up to 9.8s of the 10s window
                     if (Date.now() - startTime > 9800) break; 
 
-                    const res = await walkerAxios.get(`https://badges.${ROBLOX_PROXY}/v1/users/${userId}/badges?limit=100&cursor=${cursor}`);
+                    const res = await walkerAxios.get(rbApi('badges', `/v1/users/${userId}/badges?limit=100&cursor=${cursor}`));
                     const data = res.data;
                     if (!data) break;
 
@@ -628,11 +657,11 @@ app.get('/deep-intel/:username', protectTier(2), async (req, res) => {
         console.log(`[INTEL] Batch 1: Metadata, Groups, RoTector`);
         
         const [groupsRes, detailedRes, rotectorRes] = await Promise.all([
-            axios.get(`https://groups.${ROBLOX_PROXY}/v1/users/${userId}/groups/roles`, { timeout: 10000 }).catch(e => {
+            axios.get(rbApi('groups', `/v1/users/${userId}/groups/roles`), { timeout: 10000 }).catch(e => {
                 if (e.response?.status === 429) console.warn("[RATELIMIT] Groups API throttled");
                 return { data: { data: [] } };
             }),
-            axios.get(`https://users.${ROBLOX_PROXY}/v1/users/${userId}`, { timeout: 10000 }).catch(e => {
+            axios.get(rbApi('users', `/v1/users/${userId}`), { timeout: 10000 }).catch(e => {
                 if (e.response?.status === 429) console.warn("[RATELIMIT] Users API throttled");
                 return { data: {} };
             }),
@@ -650,9 +679,9 @@ app.get('/deep-intel/:username', protectTier(2), async (req, res) => {
         // 3. Fetch Visual Data & Outfits (Batch 2)
         console.log(`[INTEL] Batch 2: Visuals, Outfits`);
         const [avatarRes, bustRes, outfitRes] = await Promise.all([
-            axios.get(`https://thumbnails.${ROBLOX_PROXY}/v1/users/avatar?userIds=${userId}&size=420x420&format=Png&isCircular=false`, { timeout: 10000 }).catch(e => ({ data: { data: [{ imageUrl: "" }] } })),
-            axios.get(`https://thumbnails.${ROBLOX_PROXY}/v1/users/avatar-bust?userIds=${userId}&size=150x150&format=Png&isCircular=false`, { timeout: 10000 }).catch(e => ({ data: { data: [{ imageUrl: "" }] } })),
-            axios.get(`https://avatar.${ROBLOX_PROXY}/v1/users/${userId}/outfits?isEditable=true&itemsPerPage=50`, { timeout: 10000 }).catch(e => {
+            axios.get(rbApi('thumbnails', `/v1/users/avatar?userIds=${userId}&size=420x420&format=Png&isCircular=false`), { timeout: 10000 }).catch(e => ({ data: { data: [{ imageUrl: "" }] } })),
+            axios.get(rbApi('thumbnails', `/v1/users/avatar-bust?userIds=${userId}&size=150x150&format=Png&isCircular=false`), { timeout: 10000 }).catch(e => ({ data: { data: [{ imageUrl: "" }] } })),
+            axios.get(rbApi('avatar', `/v1/users/${userId}/outfits?isEditable=true&itemsPerPage=50`), { timeout: 10000 }).catch(e => {
                 if (e.response?.status === 429) console.warn("[RATELIMIT] Outfits API throttled");
                 return { data: { data: [] } };
             })
@@ -678,7 +707,7 @@ app.get('/deep-intel/:username', protectTier(2), async (req, res) => {
             const fetchGroupIcons = async () => {
                 if (!groupIds) return;
                 try {
-                    const res = await axios.get(`https://thumbnails.${ROBLOX_PROXY}/v1/groups/icons`, {
+                    const res = await axios.get(rbApi('thumbnails', '/v1/groups/icons'), {
                         params: { groupIds, size: '150x150', format: 'Png', isCircular: false },
                         timeout: 8000
                     });
@@ -692,7 +721,7 @@ app.get('/deep-intel/:username', protectTier(2), async (req, res) => {
             const fetchBadgeIcons = async () => {
                 if (!badgeIds) return;
                 try {
-                    const res = await axios.get(`https://thumbnails.${ROBLOX_PROXY}/v1/badges/icons`, {
+                    const res = await axios.get(rbApi('thumbnails', '/v1/badges/icons'), {
                         params: { badgeIds, size: '150x150', format: 'Png', isCircular: false },
                         timeout: 8000
                     });
@@ -717,7 +746,7 @@ app.get('/deep-intel/:username', protectTier(2), async (req, res) => {
             if (outfitIds) {
                 try {
                     console.log(`[INTEL] Fetching outfit thumbnails for IDs: ${outfitIds.substring(0, 30)}...`);
-                    const outfitThumbRes = await axios.get(`https://thumbnails.${ROBLOX_PROXY}/v1/users/outfits?userOutfitIds=${outfitIds}&size=150x150&format=Png&isCircular=false`, { timeout: 15000 });
+                    const outfitThumbRes = await axios.get(rbApi('thumbnails', `/v1/users/outfits?userOutfitIds=${outfitIds}&size=150x150&format=Png&isCircular=false`), { timeout: 15000 });
                     
                     outfits = filteredOutfits.map(o => {
                         const thumb = outfitThumbRes.data?.data?.find(t => t.targetId === o.id);
