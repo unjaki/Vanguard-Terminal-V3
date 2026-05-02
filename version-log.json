@@ -1,0 +1,201 @@
+[
+  {
+    "version": "3.6.5",
+    "date": "2026-05-02",
+    "notes": [
+      "Personnel Recon UI Refinement: Optimized label visibility (adaptive typography based on background).",
+      "Tactical Renaming: Synchronized 'General staff' unit designations to 'GSMC' classification.",
+      "Stabilized lookup protocols for high-priority personnel."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "3.6.4",
+    "date": "2026-05-02",
+    "notes": [
+      "Refined GSMC Recon Profile: Updated tactical gradient to #1F5C4A -> #3FAF8F.",
+      "Optimized visual clarity for high-ranking personnel badges."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "3.6.3",
+    "date": "2026-05-02",
+    "notes": [
+      "Tactical Color Update: Replaced GSMC (General Staff) branding with request-aligned gradient (#0F2A24 -> #3FAF8F).",
+      "Corrected typography contrast for GSMC field units."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "date": "2026-05-02",
+    "notes": [
+      "Visual Recon Recalibration: Enforced high-contrast (black) typography for sub-division unit labels.",
+      "Optimized branch gradients for TEMS (Deep Sea Blue) and CBRN (Tactical Overgrowth).",
+      "Enhanced legibility protocols for vibrant unit designations."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "3.6.1",
+    "date": "2026-05-02",
+    "notes": [
+      "Stabilized Personnel Recon: Hardened group icon fetch logic against Roblox API 400 errors (deduplication & batch limiting).",
+      "Enhanced system reliability for high-volume group memberships."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "3.6.0",
+    "date": "2026-05-02",
+    "notes": [
+      "Personnel Recon UI Overhaul: Specialized color-coding for unit designations (CBRN, 6AAU, MEDSOC, etc.).",
+      "Sub-division Recon Uplink: Integrated group icons into expandable forensic rows.",
+      "Renamed 'General Staff' to 'GSMC' for command parity.",
+      "Synchronized parent group (NS) visual protocols."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "3.5.10",
+    "date": "2026-05-02",
+    "notes": [
+      "Refined search error handling: Replaced generic failures with 'Not in group or name typo'.",
+      "Enforced stricter group membership validation for Batch Scans.",
+      "Synchronized system-wide reconnaissance protocols."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "3.5.9",
+    "date": "2026-05-02",
+    "notes": [
+      "Optimized forensic walker with keep-alive agents for high-volume badge indexing (8000+ support).",
+      "Increased reconnaissance window to 9.8s for maximum data pinpointing.",
+      "Stabilized outfit retrieval protocols."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "3.5.8",
+    "date": "2026-05-02",
+    "notes": [
+      "Patched Badge Pinpoint Walker: Fixed 'badges is not defined' logic breach.",
+      "Optimized forensic response payload for recursive checks.",
+      "Synchronized internal terminal uplink."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "3.5.7",
+    "date": "2026-05-02",
+    "notes": [
+      "Integrated Badge Pinpoint Walker: Utilizes 10s wait window to accurately index user badges.",
+      "Optimized Deep Intel reconnaissance: Reduced redundant API calls by recycling walker data.",
+      "Enhanced system stability by recalibrating Batch 2 timeouts."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "3.5.6",
+    "date": "2026-05-02",
+    "notes": [
+      "Restored isEditable parameter to Outfit retrieval protocol.",
+      "Synchronized terminal uplink versioning."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "3.5.5",
+    "date": "2026-05-02",
+    "notes": [
+      "Fixed Badge Count forensic reporting (Limit calibration).",
+      "Restored Personnel Outfit retrieval (Public inventory bypass).",
+      "Stabilized Deep Intel reconnaissance pipelines."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "3.5.4",
+    "date": "2026-05-02",
+    "notes": [
+      "Decommissioned XTracker Security Forensics uplink.",
+      "Preserved Total Badge Count monitoring as a standalone forensic metric.",
+      "Optimized Deep Intel payload for lower latency.",
+      "Refined community index risk assessment logic."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "3.5.3",
+    "date": "2026-05-02",
+    "notes": [
+      "Optimized XTracker lookups to handle non-indexed users (404) silently.",
+      "Reduced log noise during high-volume reconnaissance.",
+      "Synchronized system-wide forensic report naming."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "3.5.2",
+    "date": "2026-05-02",
+    "notes": [
+      "Transitioned XTracker credentials to secure environment variables.",
+      "Hardened forensic lookup headers.",
+      "Minor stability fixes for Azure environment."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "3.5.1",
+    "date": "2026-05-02",
+    "notes": [
+      "Enhanced XTracker Forensic diagnostics.",
+      "Optimized uplink timeouts for forensic lookups.",
+      "Removed redundant server-side logs."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "3.5.0",
+    "date": "2026-05-02",
+    "notes": [
+      "Integrated XTracker Security Forensics (Registry & Ownership scans).",
+      "Recalibrated GSMC Sub-Division protocols with updated Unit IDs.",
+      "Added Total Badge Count metrics to Deep Intel recon.",
+      "Implemented security clearance badges for high-risk flags."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "3.4.1",
+    "date": "2026-05-02",
+    "notes": [
+      "Decommissioned Built-in Proxy Protocol (Latency optimization).",
+      "Added /health diagnostic endpoint.",
+      "Fine-tuned Deep Intel batch timing for Azure environment."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "3.4.0",
+    "date": "2026-05-02",
+    "notes": [
+      "Added Intel Retrieval Loading Bar with 10s cooldown.",
+      "Implemented Operative Management System (Tier 3+).",
+      "Deployed Version Log tracking system.",
+      "Fixed Group/Badge icon synchronization issues."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "3.3.5",
+    "date": "2026-05-01",
+    "notes": [
+      "Optimized Deep Intel scraping reliability.",
+      "Added support for fuzzy username matching.",
+      "Initial Dockerization for Azure deployment."
+    ],
+    "author": "Vanguard-AI"
+  }
+]

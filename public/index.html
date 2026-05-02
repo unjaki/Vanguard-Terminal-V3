@@ -94,6 +94,35 @@
         .badge-neon { background: var(--neon); color: #000; }
         .badge-danger { background: var(--danger); color: #fff; }
 
+        /* Deep Intel Loading Bar */
+        .intel-loading-wrap {
+            text-align: center;
+            width: 100%;
+            max-width: 400px;
+            padding: 40px;
+        }
+        .intel-progress-container {
+            width: 100%;
+            height: 4px;
+            background: #0a0a0a;
+            margin: 20px 0;
+            border-radius: 2px;
+            overflow: hidden;
+            border: 1px solid #1a1a1a;
+        }
+        .intel-progress-bar {
+            height: 100%;
+            width: 0%;
+            background: var(--neon);
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.5);
+            transition: width 1s linear;
+        }
+        .intel-status-sub {
+            font-size: 0.5rem;
+            color: #444;
+            margin-top: 10px;
+        }
+
         /* Deep Intel Modal */
         #intel-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 1000; justify-content: center; align-items: center; }
         .modal-body { background: var(--card); border: 1px solid var(--neon); width: 1000px; max-width: 95vw; max-height: 90vh; padding: 30px; position: relative; overflow-y: auto; box-shadow: 0 0 50px rgba(0,255,136,0.1); }
@@ -157,8 +186,14 @@
             <div class="tab active" data-target="user-lookup">
                 <i data-lucide="users"></i> <span>PERSONNEL SEARCH</span>
             </div>
+            <div id="admin-tab-btn" class="tab hidden" data-target="personnel-management">
+                <i data-lucide="shield"></i> <span>PERSONNEL COMMAND</span>
+            </div>
             <div class="tab" data-target="group-intel">
                 <i data-lucide="database"></i> <span>UNIT INTEL</span>
+            </div>
+            <div class="tab" data-target="version-log-tab" onclick="loadVersionLog()">
+                <i data-lucide="history"></i> <span>SYSTEM LOGS</span>
             </div>
             <div class="tab" data-target="settings-tab">
                 <i data-lucide="settings"></i> <span>SYSTEM SETTINGS</span>
@@ -212,7 +247,35 @@
                 </div>
             </div>
 
-            <!-- Unit Intel Tab -->
+            <!-- Personnel Management Tab -->
+            <div id="personnel-management" class="tab-content">
+                <div class="intel-header">
+                    <div>
+                        <h2 style="font-size: 1.1rem; margin: 0;">Personnel Command</h2>
+                        <p style="font-size: 0.7rem; color: #555; margin: 5px 0 0 0;">OPERATIVE DEPLOYMENT & OVERSIGHT</p>
+                    </div>
+                    <button onclick="document.getElementById('deploy-modal').style.display='flex'" style="width:auto; padding:8px 20px;">
+                        <i data-lucide="user-plus"></i> DEPLOY NEW UNIT
+                    </button>
+                </div>
+
+                <div id="admin-user-list">
+                    <!-- User list populated by JS -->
+                </div>
+            </div>
+
+            <!-- Version Log Tab -->
+            <div id="version-log-tab" class="tab-content">
+                <div class="intel-header">
+                    <div>
+                        <h2 style="font-size: 1.1rem; margin: 0;">Operational History</h2>
+                        <p style="font-size: 0.7rem; color: #555; margin: 5px 0 0 0;">SYSTEM VERSION EVOLUTION LOG</p>
+                    </div>
+                </div>
+                <div id="version-list-container" style="max-height: 70vh; overflow-y: auto;">
+                    <!-- Logs injected here -->
+                </div>
+            </div>
             <div id="group-intel" class="tab-content">
                 <div class="intel-header">
                     <div>
@@ -225,7 +288,7 @@
                     <i data-lucide="search" style="color: #444; width: 18px;"></i>
                     <select id="group-preset" style="width: 180px; margin: 0;">
                         <option value="">CUSTOM UPLINK</option>
-                        <option value="288142915" selected>GSMC MAIN</option>
+                        <option value="288142915" selected>GSMC</option>
                         <option value="423217030">CBRN DIVISION</option>
                         <option value="1008942731">NS</option>
                     </select>
@@ -275,12 +338,31 @@
                     </div>
                 </div>
                 <div class="intel-card">
-                    <p style="color: #666; font-size: 0.8rem;">Terminal Version: 3.2.0-OPERATIONAL</p>
+                    <p style="color: #666; font-size: 0.8rem;">Terminal Version: 3.6.5-OPERATIONAL</p>
                     <p style="color: #666; font-size: 0.8rem;">Uplink Status: <span style="color: var(--neon)">ENCRYPTED</span></p>
                     <p style="color: #666; font-size: 0.8rem;">Assigned Scope: <span id="current-scope-display" style="color: #fff; font-weight: bold;">-</span></p>
                 </div>
             </div>
         </main>
+    </div>
+
+        <!-- Deployment Modal -->
+    <div id="deploy-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:2000; justify-content:center; align-items:center;">
+        <div class="container" style="width:400px; border-color:var(--neon);">
+            <h1 style="margin-bottom:15px;"><i data-lucide="user-plus"></i> UNIT DEPLOYMENT</h1>
+            <input type="text" id="new-username" placeholder="OPERATIVE DESIGNATION">
+            <input type="password" id="new-password" placeholder="INITIAL SECURITY KEY">
+            <select id="new-tier">
+                <option value="1">TIER 1 (RECON)</option>
+                <option value="2" selected>TIER 2 (OPERATIVE)</option>
+                <option value="3">TIER 3 (COMMANDER)</option>
+            </select>
+            <input type="text" id="new-scope" placeholder="UNIT SCOPE (e.g., CBRN, ALL, GSMC)">
+            <div style="display:flex; gap:10px; margin-top:15px;">
+                <button onclick="deployOperative()" style="flex:1;">DEPLOY</button>
+                <button onclick="document.getElementById('deploy-modal').style.display='none'" style="flex:1; background:#222; color:#888;">ABORT</button>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -309,20 +391,20 @@
 
                 if (res.ok) {
                     localStorage.setItem('gsmc_jwt', data.token);
-                    initializeVanguard(data.unitScope);
+                    initializeVanguard(data.unitScope, data.tier);
                 } else {
                     document.getElementById('login-btn').style.background = 'var(--danger)';
                     setTimeout(() => document.getElementById('login-btn').style.background = 'var(--neon)', 1000);
                 }
             } catch (err) {
-                initializeVanguard("288142915"); 
+                initializeVanguard("288142915", 1); 
             }
         }
 
         const UNITS = {
-            GSMC: { id: "288142915", name: "GSMC MAIN" },
+            GSMC: { id: "288142915", name: "GSMC" },
             CBRN: { id: "423217030", name: "CBRN DIVISION" },
-            NS: { id: "1008942731", name: "NS UNIT" }
+            NS: { id: "1008942731", name: "NS" }
         };
 
         const SCOPES = {
@@ -331,10 +413,18 @@
             "CBRN": [UNITS.CBRN, UNITS.NS]
         };
 
-        function initializeVanguard(scope) {
+        let userTier = 0;
+
+        function initializeVanguard(scope, tier) {
+            userTier = tier || 0;
             document.getElementById('login-view').classList.add('hidden');
             document.getElementById('dashboard-view').style.display = 'flex';
             
+            if (userTier >= 3) {
+                document.getElementById('admin-tab-btn').classList.remove('hidden');
+                loadPersonnelManagement();
+            }
+
             // Auto-collapse on mobile (tablet and below)
             if (window.innerWidth <= 768) {
                 document.getElementById('dashboard-view').classList.add('collapsed');
@@ -359,6 +449,122 @@
             } else if (availableUnits.length > 0) {
                 document.getElementById('group-id-input').value = availableUnits[0].id;
                 loadGroupIntel(availableUnits[0].id);
+            }
+        }
+
+        async function loadPersonnelManagement() {
+            if (userTier < 3) return;
+            const container = document.getElementById('admin-user-list');
+            container.innerHTML = `<p style="color:var(--neon); font-size:0.7rem;">FETCHING PERSONNEL DATABASE...</p>`;
+
+            try {
+                const res = await fetch(`${CONFIG.API_BASE}/admin/users`, {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('gsmc_jwt')}` }
+                });
+                const users = await res.json();
+                
+                let html = `<table>
+                    <thead>
+                        <tr>
+                            <th>OPERATIVE</th>
+                            <th>CLEARANCE</th>
+                            <th>SCOPE</th>
+                            <th>STATUS</th>
+                            <th>ACTION</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+                
+                users.forEach(u => {
+                    html += `<tr>
+                        <td style="color:#fff;">${u.username}</td>
+                        <td style="color:var(--neon)">TIER ${u.tier}</td>
+                        <td>${u.unitScope}</td>
+                        <td style="color:#00ff00;">● ACTIVE</td>
+                        <td>
+                            ${u.tier < userTier ? `
+                                <button onclick="decommissionOperative('${u._id}')" style="background:#1a0000; color:var(--danger); border:1px solid var(--danger); width:auto; padding:4px 10px; font-size:0.55rem;">
+                                    DECOMMISSION
+                                </button>
+                            ` : '<span style="color:#444; font-size:0.5rem;">PROTECTED</span>'}
+                        </td>
+                    </tr>`;
+                });
+                
+                html += `</tbody></table>`;
+                container.innerHTML = html;
+            } catch (err) {
+                container.innerHTML = `<p style="color:var(--danger);">DATABASE UPLINK ERROR</p>`;
+            }
+        }
+
+        async function deployOperative() {
+            const username = document.getElementById('new-username').value;
+            const password = document.getElementById('new-password').value;
+            const tier = document.getElementById('new-tier').value;
+            const unitScope = document.getElementById('new-scope').value;
+
+            if (!username || !password) return alert("MISSING COMMANDER DATA");
+
+            try {
+                const res = await fetch(`${CONFIG.API_BASE}/admin/users`, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('gsmc_jwt')}`
+                    },
+                    body: JSON.stringify({ username, password, tier: parseInt(tier), unitScope })
+                });
+                const data = await res.json();
+                
+                if (res.ok) {
+                    document.getElementById('deploy-modal').style.display = 'none';
+                    loadPersonnelManagement();
+                } else {
+                    alert(data.message || "DEPLOYMENT FAILED");
+                }
+            } catch (err) {
+                alert("NETWORK UPLINK ERROR");
+            }
+        }
+
+        async function decommissionOperative(id) {
+            if (!confirm("CONFIRM PERSONNEL DECOMMISSIONING?")) return;
+            try {
+                const res = await fetch(`${CONFIG.API_BASE}/admin/users/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('gsmc_jwt')}` }
+                });
+                if (res.ok) loadPersonnelManagement();
+                else {
+                    const data = await res.json();
+                    alert(data.message);
+                }
+            } catch (err) { alert("UPLINK ERROR"); }
+        }
+
+        async function loadVersionLog() {
+            const container = document.getElementById('version-list-container');
+            container.innerHTML = `<p style="color:var(--neon); font-size:0.75rem;">DECRYPTING SYSTEM RECORDS...</p>`;
+            
+            try {
+                const res = await fetch(`${CONFIG.API_BASE}/system/version-log`);
+                const logs = await res.json();
+                
+                container.innerHTML = logs.map(l => `
+                    <div class="intel-card" style="margin-bottom:15px; border-left: 2px solid var(--neon);">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                            <h4 style="margin:0; color:#fff;">VERSION ${l.version}</h4>
+                            <span style="font-size:0.6rem; color:#444; font-family:monospace;">STAMP: ${l.date}</span>
+                        </div>
+                        <ul style="margin:0; padding-left:15px; color:#aaa; font-size:0.7rem; line-height:1.6;">
+                            ${l.notes.map(n => `<li>${n}</li>`).join('')}
+                        </ul>
+                        <div style="margin-top:10px; text-align:right; font-size:0.5rem; color:#333;">AUTHOR: ${l.author}</div>
+                    </div>
+                `).join('');
+            } catch (err) {
+                container.innerHTML = `<p style="color:var(--danger);">LOG RETRIEVAL ERROR</p>`;
             }
         }
 
@@ -419,14 +625,32 @@
                         subRow.id = `subrow-${rowId}`;
                         subRow.className = "sub-row";
                         
+                        const subDivConfigs = {
+                            'CBRN': { background: 'linear-gradient(to right, #1a5e0d, #248113)' },
+                            '6AAU': { background: 'linear-gradient(to right, #8f81a8, #9fc1ff)' },
+                            'NS': { background: 'linear-gradient(to right, #ffff00, #ffb347)', color: '#000' },
+                            'MEDSOC': { background: 'linear-gradient(to right, #48489e, #000000)' },
+                            'AMC': { background: 'linear-gradient(to right, #ffffff, #ff6f00)', color: '#000' },
+                            'MEI': { background: '#0fbd86', color: '#000' },
+                            'TEMS': { background: 'linear-gradient(to right, #0012e6, #1d30ff)' },
+                            'GSMC': { background: 'linear-gradient(to right, #1F5C4A, #3FAF8F)', color: '#fff' }
+                        };
+
                         const subDivContent = data.subDivisions && data.subDivisions.length > 0
                             ? `<div class="sub-div-grid">
-                                ${data.subDivisions.map(s => `
-                                    <div class="sub-div-card">
-                                        <h6>${s.name}</h6>
-                                        <p>${s.rank} <small style="color:#444">[${s.rankId}]</small></p>
-                                    </div>
-                                `).join('')}
+                                ${data.subDivisions.map(s => {
+                                    const config = subDivConfigs[s.name] || subDivConfigs[s.name.toUpperCase()] || { background: '#111' };
+                                    const labelColor = config.color === '#000' ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.4)';
+                                    return `
+                                        <div class="sub-div-card" style="background: ${config.background}; color: ${config.color || '#fff'}; border: none; display: flex; align-items: center; gap: 10px;">
+                                            <img src="${s.icon || 'https://tr.rbxcdn.com/38c6edcf096a30366bc90e9d68a2d1d4/150/150/Avatar/Png'}" style="width:30px; height:30px; border-radius:3px; border:1px solid rgba(0,0,0,0.2);">
+                                            <div style="flex: 1; overflow: hidden;">
+                                                <h6 style="color: ${labelColor}; margin-bottom: 2px; font-weight: 800; text-transform: uppercase; font-size: 0.6rem;">${s.name}</h6>
+                                                <p style="color: ${config.color ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.9)'}; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; font-weight: 500;">${s.rank} <small style="opacity:0.6">[${s.rankId}]</small></p>
+                                            </div>
+                                        </div>
+                                    `;
+                                }).join('')}
                                </div>`
                             : `<p style="color:#444; font-size:0.65rem; margin:0;">NO REGISTERED SUB-DIVISIONS DETECTED</p>`;
 
@@ -536,7 +760,39 @@
             const content = document.getElementById('intel-modal-content');
             
             modal.style.display = 'flex';
-            content.innerHTML = `<div style="text-align:center; padding:50px; color:var(--neon);">INITIALIZING DEEP PACKET INSPECTION...</div>`;
+            content.innerHTML = `
+                <div class="intel-loading-wrap" style="margin: 100px auto;">
+                    <div style="color:var(--neon); font-size:0.8rem; letter-spacing:3px; margin-bottom:10px;">INITIALIZING DEEP RECON</div>
+                    <div class="intel-progress-container">
+                        <div id="intel-bar" class="intel-progress-bar"></div>
+                    </div>
+                    <div id="intel-status" style="color:#555; font-size:0.6rem; letter-spacing:1px; margin-top:10px;">BYPASSING ROBLOX SUPPRESSION LAYER...</div>
+                    <div class="intel-status-sub">[MANDATORY 10s RATE-LIMIT COOL-DOWN IN EFFECT]</div>
+                </div>
+            `;
+
+            const bar = document.getElementById('intel-bar');
+            const status = document.getElementById('intel-status');
+            
+            let progress = 0;
+            const statusMessages = [
+                "ESTABLISHING SECURE HANDSHAKE...",
+                "SUPPRESSING RATE-LIMIT TRIGGERS...",
+                "INJECTING METADATA PROBES...",
+                "EXTRACTING AVATAR OUTFIT HASHES...",
+                "VALIDATING COMMUNITY INDEX FLAGS..."
+            ];
+
+            const interval = setInterval(() => {
+                progress += 1;
+                if (bar) bar.style.width = progress + '%';
+                
+                if (progress % 20 === 0) {
+                    if (status) status.innerText = statusMessages[Math.floor(progress / 20) - 1] || "FINALIZING ENCRYPTION...";
+                }
+
+                if (progress >= 98) clearInterval(interval);
+            }, 110); // Slightly more than 10s to ensure server is ready
 
             try {
                 // Force fresh fetch for every request
@@ -546,6 +802,9 @@
                 });
                 const data = await res.json();
                 
+                clearInterval(interval);
+                if (bar) bar.style.width = '100%';
+                
                 if (!res.ok) throw new Error(data.message);
 
                 const joinDate = data.created ? new Date(data.created).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : "UNKNOWN";
@@ -553,14 +812,14 @@
                 content.innerHTML = `
                     ${data.isCondoUser || (data.rotector && data.rotector.risk_level === 'High') ? `
                         <div class="condo-alert">
-                            <i data-lucide="alert-triangle"></i> WARNING: SUSPECTED MALICIOUS OR HIGH-RISK ASSOCIATION DETECTED (COMMUNITY INDEX)
+                            <i data-lucide="alert-triangle"></i> WARNING: SUSPECTED MALICIOUS OR HIGH-RISK ASSOCIATION DETECTED (SECURITY INDEX)
                         </div>
                     ` : ''}
 
                     <div class="intel-grid">
                         <!-- Left Column: AVATAR -->
                         <div class="intel-left" style="border-right: 1px solid #222; padding-right:30px;">
-                            <div class="avatar-container">
+                            <div class="avatar-container" style="position:relative;">
                                 <img src="${data.avatar}" style="width:100%; filter: drop-shadow(0 0 10px rgba(0,255,136,0.2));">
                             </div>
                             <div style="display:flex; justify-content:center; gap:10px; margin-bottom: 20px;">
@@ -585,8 +844,13 @@
                                     <span class="badge ${data.isCondoUser || (data.rotector && data.rotector.risk_level === 'High') ? 'badge-danger' : 'badge-neon'}">
                                         COMMUNITY INDEX: ${data.isCondoUser || (data.rotector && data.rotector.risk_level === 'High') ? 'HIGH RISK' : (data.rotector ? data.rotector.risk_level.toUpperCase() : 'STABLE')}
                                     </span>
-                                    ${data.rotector ? `<span class="badge" style="background:#111; border:1px solid var(--neon); color:var(--neon)">ROTECTOR: VERIFIED</span>` : ''}
+                                    ${data.rotector ? `
+                                        <span class="badge" style="background:rgba(255,204,0,0.1); border:1px solid #ffcc00; color:#ffcc00">
+                                            ROTECTOR SAFETY: ${data.rotector.risk_level === 'High' ? 'CRITICAL' : data.rotector.risk_level.toUpperCase()}
+                                        </span>
+                                    ` : ''}
                                     ${data.isBanned ? '<span class="badge" style="background:var(--danger)">BANNED</span>' : ''}
+                                    <span class="badge" style="background:rgba(0,255,136,0.1); border:1px solid var(--neon);">BADGES: ${data.badgeCount}</span>
                                 </div>
                             </div>
 
@@ -652,7 +916,7 @@
                             </div>
 
                             <div class="intel-section">
-                                <h5><i data-lucide="award"></i> BADGE RECORD</h5>
+                                <h5><i data-lucide="award"></i> BADGE RECORD [${data.badgeCount}]</h5>
                                 <div class="badge-grid">
                                     ${data.badges.map(b => `
                                         <div class="badge-item">
@@ -728,7 +992,7 @@
                     });
                     const data = await res.json();
                     if (res.ok) {
-                        initializeVanguard(data.unitScope);
+                        initializeVanguard(data.unitScope, data.tier);
                     } else {
                         localStorage.removeItem('gsmc_jwt');
                     }
