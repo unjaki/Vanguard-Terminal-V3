@@ -21,25 +21,14 @@ const Division = require(path.join(__dirname, 'models', 'divisions.js'));
 const ROBLOX_PROXY = process.env.ROBLOX_PROXY || "roblox.com";
 
 const rbApi = (subdomain, endpoint) => {
-    if (!ROBLOX_PROXY || ROBLOX_PROXY === "roblox.com") {
-        return `https://${subdomain}.roblox.com${endpoint}`;
-    }
-    
-    // Normalize proxy host (remove trailing slash and protocol)
-    let proxyHost = ROBLOX_PROXY.trim();
-    proxyHost = proxyHost.replace(/^https?:\/\//, '').replace(/\/$/, '');
-    
-    // Ensure endpoint starts with /
-    const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-    
-    // Subdomain-based proxy format: https://subdomain.proxy.com/path
-    return `https://${subdomain}.${proxyHost}${path}`;
+    return `https://${subdomain}.roblox.com${endpoint}`;
 };
 
 const app = express();
 
 // 2. Middleware & Cache Setup
-const axiosAgent = new https.Agent({ rejectUnauthorized: false });
+axios.defaults.headers.common['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+const axiosAgent = new https.Agent({ keepAlive: true });
 axios.defaults.httpsAgent = axiosAgent;
 
 app.use(cors());
@@ -618,8 +607,11 @@ app.get('/deep-intel/:username', protectTier(2), async (req, res) => {
             // Create a high-performance walker client with keepAlive
             const walkerAxios = axios.create({
                 httpAgent: new http.Agent({ keepAlive: true, maxSockets: 100 }),
-                httpsAgent: new https.Agent({ keepAlive: true, maxSockets: 100, rejectUnauthorized: false }),
-                timeout: 5000
+                httpsAgent: new https.Agent({ keepAlive: true, maxSockets: 100 }),
+                timeout: 5000,
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                }
             });
 
             try {
