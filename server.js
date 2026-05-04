@@ -35,6 +35,92 @@ app.use(cors());
 app.use(express.json()); // Essential for POST requests
 app.use(express.static(path.join(__dirname, 'public')));
 
+// 2.5 Roblox Request Queue & Intelligence Throttling
+class RobloxRequestQueue {
+    constructor(batchSize = 5, delay = 1000) {
+        this.queue = [];
+        this.processing = false;
+        this.batchSize = batchSize;
+        this.delay = delay;
+        // Map to track requests that are currently in-flight or in-queue to avoid duplicates
+        this.pendingRequests = new Map(); // Key -> Promise
+    }
+
+    async enqueue(url, options = {}, method = 'get', body = null, retries = 5) {
+        // Create a unique key for the request to prevent duplicate bursts
+        const key = `${method}:${url}:${body ? JSON.stringify(body) : ''}`;
+
+        if (this.pendingRequests.has(key)) {
+            console.log(`[QUEUE] deduplicating request: ${url}`);
+            return this.pendingRequests.get(key);
+        }
+
+        const promise = new Promise((resolve, reject) => {
+            this.queue.push({ url, options, method, body, resolve, reject, retries, attempt: 0 });
+            this._process();
+        });
+
+        this.pendingRequests.set(key, promise);
+        
+        try {
+            const result = await promise;
+            return result;
+        } finally {
+            // Clean up after completion (success or failure)
+            this.pendingRequests.delete(key);
+        }
+    }
+
+    async _process() {
+        if (this.processing || this.queue.length === 0) return;
+        this.processing = true;
+
+        while (this.queue.length > 0) {
+            const batch = this.queue.splice(0, this.batchSize);
+            console.log(`[QUEUE] Processing batch of ${batch.length}. Remaining in queue: ${this.queue.length}`);
+
+            await Promise.allSettled(batch.map(async (item) => {
+                try {
+                    let response;
+                    if (item.method === 'get') {
+                        response = await axios.get(item.url, item.options);
+                    } else if (item.method === 'post') {
+                        response = await axios.post(item.url, item.body, item.options);
+                    }
+                    item.resolve(response);
+                } catch (error) {
+                    const status = error.response?.status;
+                    const isRetryable = status === 429 || (status >= 500 && status <= 504);
+                    
+                    if (isRetryable && item.attempt < item.retries) {
+                        item.attempt++;
+                        const baseDelay = status === 429 ? 12000 : 3000;
+                        const backoff = baseDelay * Math.pow(2, item.attempt - 1);
+                        console.warn(`[QUEUE] HTTP ${status} detected for ${item.url}. Retrying in ${backoff}ms (Attempt ${item.attempt}/${item.retries})`);
+                        
+                        setTimeout(() => {
+                            this.queue.push(item);
+                            this._process();
+                        }, backoff);
+                    } else {
+                        item.reject(error);
+                    }
+                }
+            }));
+
+            if (this.queue.length > 0) {
+                // Wait between batches to prevent rate limits
+                console.log(`[QUEUE] cooldown delay (${this.delay}ms)...`);
+                await new Promise(r => setTimeout(r, this.delay));
+            }
+        }
+
+        this.processing = false;
+    }
+}
+
+const robloxQueue = new RobloxRequestQueue(1, 2000); // 1 at a time (Serial), 2000ms between batches for absolute stability
+
 // Google Sheets Auth Helper
 const getSheetsClient = () => {
     try {
@@ -152,10 +238,9 @@ if (!process.env.MONGODB_URI) {
             const count = await User.countDocuments();
             if (count === 0) {
                 console.log("🚀 Bootstrapping default CBRN Admin...");
-                const hashedPassword = await bcrypt.hash("CBRN123", 10);
                 await User.create({
                     username: "CBRN_Admin",
-                    password: hashedPassword,
+                    password: "CBRN123", // No longer hashing default bootstrap
                     tier: 5,
                     unitScope: "CBRN"
                 });
@@ -230,7 +315,16 @@ app.post('/login', async (req, res) => {
             return res.status(400).json({ message: "User not found" });
         }
 
-        const isMatch = await bcrypt.compare(password, userData.password);
+        // Support both hashed legacy passwords and new plain text passwords
+        let isMatch = false;
+        if (userData.password.startsWith('$2a$') || userData.password.startsWith('$2b$')) {
+            // Likely a hash
+            isMatch = await bcrypt.compare(password, userData.password);
+        } else {
+            // Direct comparison
+            isMatch = (password === userData.password);
+        }
+
         if (!isMatch) {
             console.warn(`[AUTH] Invalid credentials for: ${username}`);
             return res.status(400).json({ message: "Invalid credentials" });
@@ -289,12 +383,12 @@ app.get('/group-info/:groupId', protectTier(2), async (req, res) => {
 
     try {
         console.log(`[INTEL] Fetching Roblox Data: ${groupId}`);
-        // 1. Fetch main group metadata
-        const groupRes = await axios.get(rbApi('groups', `/v1/groups/${groupId}`), { timeout: 5000 });
+        // 1. Fetch main group metadata using the controlled queue
+        const groupRes = await robloxQueue.enqueue(rbApi('groups', `/v1/groups/${groupId}`), { timeout: 5000 });
         const data = groupRes.data;
 
-        // 2. Fetch roles (ranks)
-        const rolesRes = await axios.get(rbApi('groups', `/v1/groups/${groupId}/roles`), { timeout: 5000 });
+        // 2. Fetch roles (ranks) using the controlled queue
+        const rolesRes = await robloxQueue.enqueue(rbApi('groups', `/v1/groups/${groupId}/roles`), { timeout: 5000 });
         const roles = rolesRes.data.roles.sort((a, b) => b.rank - a.rank); // Sort by rank level desc
 
         const result = {
@@ -357,10 +451,15 @@ app.get('/verify-member/:unitName/:username', protectTier(2), async (req, res) =
         let userData;
         try {
             // PHASE A: Exact Username Lookup (Robust & High Rate Limit)
-            const exactRes = await axios.post(rbApi('users', '/v1/usernames/users'), {
-                usernames: [username.trim()],
-                excludeBannedUsers: false
-            }, { timeout: 5000 });
+            const exactRes = await robloxQueue.enqueue(
+                rbApi('users', '/v1/usernames/users'), 
+                { timeout: 5000 }, 
+                'post', 
+                {
+                    usernames: [username.trim()],
+                    excludeBannedUsers: false
+                }
+            );
             
             userData = exactRes.data.data[0];
 
@@ -368,7 +467,7 @@ app.get('/verify-member/:unitName/:username', protectTier(2), async (req, res) =
             if (!userData) {
                 console.log(`[SCAN] No exact match for "${username}". Attempting fuzzy search...`);
                 // limit=1 is more economical for fuzzy search
-                const searchRes = await axios.get(rbApi('users', `/v1/users/search?keyword=${encodeURIComponent(username.trim())}&limit=1`), { timeout: 5000 });
+                const searchRes = await robloxQueue.enqueue(rbApi('users', `/v1/users/search?keyword=${encodeURIComponent(username.trim())}&limit=1`), { timeout: 5000 });
                 userData = searchRes.data.data[0];
             }
         } catch (rbErr) {
@@ -427,7 +526,7 @@ app.get('/verify-member/:unitName/:username', protectTier(2), async (req, res) =
         const NS_GROUP_ID = "1008942731";
 
         try {
-            const rbRes = await axios.get(rbApi('groups', `/v1/users/${rbId}/groups/roles`));
+            const rbRes = await robloxQueue.enqueue(rbApi('groups', `/v1/users/${rbId}/groups/roles`));
             const groups = rbRes.data.data;
             
             groupData = groups.find(g => g.group.id == unit.groupId);
@@ -444,7 +543,7 @@ app.get('/verify-member/:unitName/:username', protectTier(2), async (req, res) =
             let iconsMap = {};
             if (groupIds) {
                 try {
-                    const iconRes = await axios.get(rbApi('thumbnails', `/v1/groups/icons?groupIds=${groupIds}&size=150x150&format=Png&isCircular=false`), { timeout: 5000 });
+                    const iconRes = await robloxQueue.enqueue(rbApi('thumbnails', `/v1/groups/icons?groupIds=${groupIds}&size=150x150&format=Png&isCircular=false`), { timeout: 5000 });
                     iconRes.data?.data?.forEach(i => {
                         if (i.targetId) iconsMap[i.targetId] = i.imageUrl;
                     });
@@ -578,10 +677,15 @@ app.get('/deep-intel/:username', protectTier(2), async (req, res) => {
         // 1. Resolve Identity
         let userData;
         try {
-            const exactRes = await axios.post(rbApi('users', '/v1/usernames/users'), {
-                usernames: [username.trim()],
-                excludeBannedUsers: false
-            }, { timeout: 5000 });
+            const exactRes = await robloxQueue.enqueue(
+                rbApi('users', '/v1/usernames/users'), 
+                { timeout: 5000 },
+                'post',
+                {
+                    usernames: [username.trim()],
+                    excludeBannedUsers: false
+                }
+            );
             userData = exactRes.data.data[0];
         } catch (identErr) {
             if (identErr.response?.status === 400) {
@@ -620,7 +724,7 @@ app.get('/deep-intel/:username', protectTier(2), async (req, res) => {
                     // Aggressive threshold: Use up to 9.8s of the 10s window
                     if (Date.now() - startTime > 9800) break; 
 
-                    const res = await walkerAxios.get(rbApi('badges', `/v1/users/${userId}/badges?limit=100&cursor=${cursor}`));
+                    const res = await robloxQueue.enqueue(rbApi('badges', `/v1/users/${userId}/badges?limit=100&cursor=${cursor}`), { timeout: 5000 });
                     const data = res.data;
                     if (!data) break;
 
@@ -649,11 +753,11 @@ app.get('/deep-intel/:username', protectTier(2), async (req, res) => {
         console.log(`[INTEL] Batch 1: Metadata, Groups, RoTector`);
         
         const [groupsRes, detailedRes, rotectorRes] = await Promise.all([
-            axios.get(rbApi('groups', `/v1/users/${userId}/groups/roles`), { timeout: 10000 }).catch(e => {
+            robloxQueue.enqueue(rbApi('groups', `/v1/users/${userId}/groups/roles`), { timeout: 10000 }).catch(e => {
                 if (e.response?.status === 429) console.warn("[RATELIMIT] Groups API throttled");
                 return { data: { data: [] } };
             }),
-            axios.get(rbApi('users', `/v1/users/${userId}`), { timeout: 10000 }).catch(e => {
+            robloxQueue.enqueue(rbApi('users', `/v1/users/${userId}`), { timeout: 10000 }).catch(e => {
                 if (e.response?.status === 429) console.warn("[RATELIMIT] Users API throttled");
                 return { data: {} };
             }),
@@ -665,15 +769,12 @@ app.get('/deep-intel/:username', protectTier(2), async (req, res) => {
             })
         ]);
 
-        // Small gap between batches
-        await new Promise(resolve => setTimeout(resolve, 1500));
-
         // 3. Fetch Visual Data & Outfits (Batch 2)
         console.log(`[INTEL] Batch 2: Visuals, Outfits`);
         const [avatarRes, bustRes, outfitRes] = await Promise.all([
-            axios.get(rbApi('thumbnails', `/v1/users/avatar?userIds=${userId}&size=420x420&format=Png&isCircular=false`), { timeout: 10000 }).catch(e => ({ data: { data: [{ imageUrl: "" }] } })),
-            axios.get(rbApi('thumbnails', `/v1/users/avatar-bust?userIds=${userId}&size=150x150&format=Png&isCircular=false`), { timeout: 10000 }).catch(e => ({ data: { data: [{ imageUrl: "" }] } })),
-            axios.get(rbApi('avatar', `/v1/users/${userId}/outfits?isEditable=true&itemsPerPage=50`), { timeout: 10000 }).catch(e => {
+            robloxQueue.enqueue(rbApi('thumbnails', `/v1/users/avatar?userIds=${userId}&size=420x420&format=Png&isCircular=false`), { timeout: 10000 }).catch(e => ({ data: { data: [{ imageUrl: "" }] } })),
+            robloxQueue.enqueue(rbApi('thumbnails', `/v1/users/avatar-bust?userIds=${userId}&size=150x150&format=Png&isCircular=false`), { timeout: 10000 }).catch(e => ({ data: { data: [{ imageUrl: "" }] } })),
+            robloxQueue.enqueue(rbApi('avatar', `/v1/users/${userId}/outfits?isEditable=true&itemsPerPage=50`), { timeout: 10000 }).catch(e => {
                 if (e.response?.status === 429) console.warn("[RATELIMIT] Outfits API throttled");
                 return { data: { data: [] } };
             })
@@ -699,7 +800,7 @@ app.get('/deep-intel/:username', protectTier(2), async (req, res) => {
             const fetchGroupIcons = async () => {
                 if (!groupIds) return;
                 try {
-                    const res = await axios.get(rbApi('thumbnails', '/v1/groups/icons'), {
+                    const res = await robloxQueue.enqueue(rbApi('thumbnails', '/v1/groups/icons'), {
                         params: { groupIds, size: '150x150', format: 'Png', isCircular: false },
                         timeout: 8000
                     });
@@ -713,7 +814,7 @@ app.get('/deep-intel/:username', protectTier(2), async (req, res) => {
             const fetchBadgeIcons = async () => {
                 if (!badgeIds) return;
                 try {
-                    const res = await axios.get(rbApi('thumbnails', '/v1/badges/icons'), {
+                    const res = await robloxQueue.enqueue(rbApi('thumbnails', '/v1/badges/icons'), {
                         params: { badgeIds, size: '150x150', format: 'Png', isCircular: false },
                         timeout: 8000
                     });
@@ -738,7 +839,7 @@ app.get('/deep-intel/:username', protectTier(2), async (req, res) => {
             if (outfitIds) {
                 try {
                     console.log(`[INTEL] Fetching outfit thumbnails for IDs: ${outfitIds.substring(0, 30)}...`);
-                    const outfitThumbRes = await axios.get(rbApi('thumbnails', `/v1/users/outfits?userOutfitIds=${outfitIds}&size=150x150&format=Png&isCircular=false`), { timeout: 15000 });
+                    const outfitThumbRes = await robloxQueue.enqueue(rbApi('thumbnails', `/v1/users/outfits?userOutfitIds=${outfitIds}&size=150x150&format=Png&isCircular=false`), { timeout: 15000 });
                     
                     outfits = filteredOutfits.map(o => {
                         const thumb = outfitThumbRes.data?.data?.find(t => t.targetId === o.id);
@@ -796,22 +897,96 @@ app.get('/deep-intel/:username', protectTier(2), async (req, res) => {
         res.status(500).json({ message: "Uplink Failed" });
     }
 });
+
+// --- SINGLE OUTFIT RECON (Used by Bulk Sequential) ---
+app.get('/outfits/:username', protectTier(2), async (req, res) => {
+    try {
+        const username = req.params.username.trim();
+        console.log(`[RECON] Fetching outfits for: ${username}`);
+
+        // 1. Resolve Identity
+        const resolveRes = await robloxQueue.enqueue(
+            rbApi('users', '/v1/usernames/users'),
+            { timeout: 5000 },
+            'post',
+            { usernames: [username], excludeBannedUsers: false }
+        );
+
+        const user = resolveRes.data.data?.[0];
+        if (!user) return res.status(404).json({ message: "Subject not found." });
+
+        // 2. Fetch Outfits
+        const outfitRes = await robloxQueue.enqueue(
+            rbApi('avatar', `/v1/users/${user.id}/outfits?isEditable=true&itemsPerPage=15`),
+            { timeout: 10000 }
+        );
+
+        const rawOutfits = outfitRes.data?.data || [];
+        const filteredOutfits = rawOutfits.slice(0, 10);
+        const outfitIds = filteredOutfits.map(o => o.id).join(',');
+
+        let outfits = [];
+        if (outfitIds) {
+            const outfitThumbRes = await robloxQueue.enqueue(
+                rbApi('thumbnails', `/v1/users/outfits?userOutfitIds=${outfitIds}&size=150x150&format=Png&isCircular=false`),
+                { timeout: 15000 }
+            );
+
+            outfits = filteredOutfits.map(o => {
+                const thumb = outfitThumbRes.data?.data?.find(t => t.targetId === o.id);
+                let img = (thumb && thumb.state === 'Completed' && thumb.imageUrl) 
+                    ? thumb.imageUrl 
+                    : "https://tr.rbxcdn.com/38c6edcf096a30366bc90e9d68a2d1d4/150/150/Avatar/Png";
+                return { id: o.id, name: o.name || "UNNAMED OUTFIT", thumbnail: img };
+            });
+        }
+
+        res.json({
+            username: user.name,
+            displayName: user.displayName,
+            userId: user.id,
+            outfits: outfits
+        });
+    } catch (err) {
+        const status = err.response?.status || 500;
+        const msg = status === 429 ? "Uplink Congested (Rate Limit)" : "Uplink Failed";
+        const details = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+        
+        console.error(`[RECON] Failed for ${req.params.username}:`, {
+            status,
+            message: err.message,
+            roblox_details: details
+        });
+
+        res.status(status).json({ 
+            message: msg, 
+            details: details,
+            error_code: status
+        });
+    }
+});
+
+// --- BULK OUTFITS ROUTE (DEPRECATED IN FAVOR OF SEQUENTIAL CLIENT LOOP) ---
+app.post('/bulk-outfits', protectTier(2), async (req, res) => {
+    // Keeping for backward compatibility but client will now use /outfits/:username in a loop for progress bars
+    res.status(410).json({ message: "Route deprecated. Use sequential uplink for progress tracking." });
+});
+
 // Create User (Register)
 app.post('/register', async (req, res) => {
     try {
         const { username, password, tier, division, unitScope } = req.body;
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(password, salt);
-
+        
+        // Storing as plain text as requested for admin oversight
         const newUser = new User({ 
             username: username, 
-            password: hashedPassword, 
+            password: password, 
             tier: tier, 
             division: division, 
             unitScope: unitScope 
         });
         await newUser.save();
-        res.status(201).json({ message: "Secure user created." });
+        res.status(201).json({ message: "Operative created." });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -871,8 +1046,23 @@ app.post('/sync-to-orbat', protectTier(3), async (req, res) => {
 // --- ACCOUNT MANAGEMENT (TIER 3+) ---
 app.get('/admin/users', protectTier(3), async (req, res) => {
     try {
-        const users = await User.find({}, '-password');
-        res.json(users);
+        const overrideKey = req.header('x-override-key');
+        const masterKey = process.env.OVERRIDE_KEY;
+        const showPasswords = masterKey && overrideKey === masterKey;
+
+        const projection = showPasswords ? '' : '-password';
+        const users = await User.find({}, projection);
+        
+        // Map users to include a "passwordStatus" for frontend indicator
+        const sanitizedUsers = users.map(u => {
+            const userObj = u.toObject();
+            if (!showPasswords) {
+                userObj.password = "[SECURED]";
+            }
+            return userObj;
+        });
+
+        res.json(sanitizedUsers);
     } catch (err) {
         res.status(500).json({ error: "Failed to retrieve personnel files." });
     }
@@ -890,12 +1080,9 @@ app.post('/admin/users', protectTier(3), async (req, res) => {
         const existing = await User.findOne({ username });
         if (existing) return res.status(400).json({ message: "Username already active in sector." });
 
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(password, salt);
-
         const newUser = new User({
             username,
-            password: hashedPassword,
+            password: password, // Storing as plain text
             tier: parseInt(tier),
             unitScope
         });

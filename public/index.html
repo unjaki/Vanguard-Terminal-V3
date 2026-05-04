@@ -192,6 +192,9 @@
             <div class="tab" data-target="group-intel">
                 <i data-lucide="database"></i> <span>UNIT INTEL</span>
             </div>
+            <div class="tab" data-target="bulk-outfits-recon">
+                <i data-lucide="shirt"></i> <span>RECON OUTFITS</span>
+            </div>
             <div class="tab" data-target="version-log-tab" onclick="loadVersionLog()">
                 <i data-lucide="history"></i> <span>SYSTEM LOGS</span>
             </div>
@@ -254,9 +257,15 @@
                         <h2 style="font-size: 1.1rem; margin: 0;">Personnel Command</h2>
                         <p style="font-size: 0.7rem; color: #555; margin: 5px 0 0 0;">OPERATIVE DEPLOYMENT & OVERSIGHT</p>
                     </div>
-                    <button onclick="document.getElementById('deploy-modal').style.display='flex'" style="width:auto; padding:8px 20px;">
-                        <i data-lucide="user-plus"></i> DEPLOY NEW UNIT
-                    </button>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input type="password" id="override-key-input" placeholder="OVERRIDE KEY" style="width: 150px; margin: 0; padding: 8px;">
+                        <button onclick="loadPersonnelManagement()" style="width: auto; padding: 8px 15px; background: #222; color: var(--neon); border: 1px solid #333;">
+                            <i data-lucide="key"></i> APPLY
+                        </button>
+                        <button onclick="document.getElementById('deploy-modal').style.display='flex'" style="width:auto; padding:8px 20px;">
+                            <i data-lucide="user-plus"></i> DEPLOY NEW UNIT
+                        </button>
+                    </div>
                 </div>
 
                 <div id="admin-user-list">
@@ -276,6 +285,48 @@
                     <!-- Logs injected here -->
                 </div>
             </div>
+
+            <div id="bulk-outfits-recon" class="tab-content">
+                <div class="intel-header">
+                    <div>
+                        <h2 style="font-size: 1.1rem; margin: 0;">Outfit Recon</h2>
+                        <p style="font-size: 0.7rem; color: #555; margin: 5px 0 0 0;">EXPERIMENTAL BULK CLOTHING ANALYSIS</p>
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 10px; align-items: stretch; margin-bottom: 20px; background: #111; padding: 15px; border: 1px solid #222; flex-direction: column;">
+                    <div style="display: flex; gap: 10px;">
+                        <div style="flex: 1;">
+                            <textarea id="bulk-outfits-input" rows="3" placeholder="Enter up to 10 usernames (line separated)..." style="height: 80px; margin: 0;"></textarea>
+                        </div>
+                        <div style="display: flex; align-items: center;">
+                            <button onclick="runBulkOutfitRecon()" id="bulk-outfit-btn" style="height: 100%; padding: 0 30px;">
+                                <i data-lucide="zap"></i> FETCH BATCH
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Progress Bar Container -->
+                    <div id="bulk-progress-container" style="display: none; margin-top: 10px;">
+                        <div style="display: flex; justify-content: space-between; font-size: 0.6rem; margin-bottom: 5px; color: #666;">
+                            <span id="bulk-progress-status">PREPARING UPLINK...</span>
+                            <span id="bulk-progress-percent">0%</span>
+                        </div>
+                        <div style="height: 4px; background: #1a1a1a; width: 100%; overflow: hidden; border-radius: 2px;">
+                            <div id="bulk-progress-bar" style="height: 100%; width: 0%; background: var(--neon); transition: width 0.3s ease;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="bulk-outfits-results" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(450px, 1fr)); gap: 20px;">
+                    <!-- Batch results will be injected here -->
+                    <div style="grid-column: 1/-1; text-align: center; color: #333; padding: 100px 0; border: 1px dashed #1a1a1a;">
+                        <i data-lucide="shirt" style="width: 48px; height: 48px; margin-bottom: 10px; opacity: 0.2;"></i>
+                        <p style="font-size: 0.75rem; letter-spacing: 2px;">WAITING FOR TARGET PARAMETERS</p>
+                    </div>
+                </div>
+            </div>
+
             <div id="group-intel" class="tab-content">
                 <div class="intel-header">
                     <div>
@@ -338,7 +389,7 @@
                     </div>
                 </div>
                 <div class="intel-card">
-                    <p style="color: #666; font-size: 0.8rem;">Terminal Version: 3.6.5-OPERATIONAL</p>
+                    <p style="color: #666; font-size: 0.8rem;">Terminal Version: 3.7.8-OPERATIONAL</p>
                     <p style="color: #666; font-size: 0.8rem;">Uplink Status: <span style="color: var(--neon)">ENCRYPTED</span></p>
                     <p style="color: #666; font-size: 0.8rem;">Assigned Scope: <span id="current-scope-display" style="color: #fff; font-weight: bold;">-</span></p>
                 </div>
@@ -455,11 +506,15 @@
         async function loadPersonnelManagement() {
             if (userTier < 3) return;
             const container = document.getElementById('admin-user-list');
+            const overrideKey = document.getElementById('override-key-input')?.value || "";
             container.innerHTML = `<p style="color:var(--neon); font-size:0.7rem;">FETCHING PERSONNEL DATABASE...</p>`;
 
             try {
                 const res = await fetch(`${CONFIG.API_BASE}/admin/users`, {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('gsmc_jwt')}` }
+                    headers: { 
+                        'Authorization': `Bearer ${localStorage.getItem('gsmc_jwt')}`,
+                        'x-override-key': overrideKey
+                    }
                 });
                 const users = await res.json();
                 
@@ -469,6 +524,7 @@
                             <th>OPERATIVE</th>
                             <th>CLEARANCE</th>
                             <th>SCOPE</th>
+                            ${overrideKey ? '<th>CREDENTIAL HASH</th>' : ''}
                             <th>STATUS</th>
                             <th>ACTION</th>
                         </tr>
@@ -480,6 +536,7 @@
                         <td style="color:#fff;">${u.username}</td>
                         <td style="color:var(--neon)">TIER ${u.tier}</td>
                         <td>${u.unitScope}</td>
+                        ${overrideKey ? `<td style="font-family:monospace; font-size:0.6rem; color:#555; max-width:120px; overflow:hidden; text-overflow:ellipsis;" title="${u.password}">${u.password}</td>` : ''}
                         <td style="color:#00ff00;">● ACTIVE</td>
                         <td>
                             ${u.tier < userTier ? `
@@ -493,6 +550,7 @@
                 
                 html += `</tbody></table>`;
                 container.innerHTML = html;
+                refreshIcons();
             } catch (err) {
                 container.innerHTML = `<p style="color:var(--danger);">DATABASE UPLINK ERROR</p>`;
             }
@@ -626,14 +684,14 @@
                         subRow.className = "sub-row";
                         
                         const subDivConfigs = {
-                            'CBRN': { background: 'linear-gradient(to right, #1a5e0d, #248113)' },
-                            '6AAU': { background: 'linear-gradient(to right, #8f81a8, #9fc1ff)' },
-                            'NS': { background: 'linear-gradient(to right, #ffff00, #ffb347)', color: '#000' },
-                            'MEDSOC': { background: 'linear-gradient(to right, #48489e, #000000)' },
-                            'AMC': { background: 'linear-gradient(to right, #ffffff, #ff6f00)', color: '#000' },
-                            'MEI': { background: '#0fbd86', color: '#000' },
-                            'TEMS': { background: 'linear-gradient(to right, #0012e6, #1d30ff)' },
-                            'GSMC': { background: 'linear-gradient(to right, #1F5C4A, #3FAF8F)', color: '#fff' }
+                            'CBRN': { background: 'linear-gradient(to right, #143d0a, #1b5a0f)' },
+                            '6AAU': { background: 'linear-gradient(to right, #6e6485, #7f98c7)' },
+                            'NS': { background: 'linear-gradient(to right, #c9c23a, #d39a45)', color: '#111' },
+                            'MEDSOC': { background: 'linear-gradient(to right, #3a3a7a, #1a1a2e)' },
+                            'AMC': { background: 'linear-gradient(to right, #d6d6d6, #c25a00)', color: '#111' },
+                            'MEI': { background: '#0fbd86', color: '#111' },
+                            'TEMS': { background: 'linear-gradient(to right, #000f99, #1623c9)' },
+                            'GSMC': { background: 'linear-gradient(to right, #1a4a3c, #2f8c73)', color: '#eee' }
                         };
 
                         const subDivContent = data.subDivisions && data.subDivisions.length > 0
@@ -712,6 +770,110 @@
                 btn.innerText = originalText;
                 btn.disabled = false;
             }
+        }
+
+        async function runBulkOutfitRecon() {
+            const input = document.getElementById('bulk-outfits-input').value;
+            const btn = document.getElementById('bulk-outfit-btn');
+            const resultsContainer = document.getElementById('bulk-outfits-results');
+            const progressContainer = document.getElementById('bulk-progress-container');
+            const progressBar = document.getElementById('bulk-progress-bar');
+            const progressStatus = document.getElementById('bulk-progress-status');
+            const progressPercent = document.getElementById('bulk-progress-percent');
+            
+            const usernames = input.split('\n').map(u => u.trim()).filter(u => u !== "").slice(0, 10);
+
+            if (usernames.length === 0) return alert("Enter target designations.");
+            
+            btn.disabled = true;
+            btn.innerHTML = `<i data-lucide="loader-2" class="spin"></i> RUNNING...`;
+            
+            progressContainer.style.display = 'block';
+            progressBar.style.width = '0%';
+            progressPercent.innerText = '0%';
+            resultsContainer.innerHTML = ''; // Start fresh
+
+            const total = usernames.length;
+            let successCount = 0;
+
+            for (let i = 0; i < total; i++) {
+                const user = usernames[i];
+                const currentNum = i + 1;
+                
+                progressStatus.innerText = `UPLINKING: ${user.toUpperCase()} (${currentNum}/${total})`;
+                
+                try {
+                    const res = await fetch(`${CONFIG.API_BASE}/outfits/${encodeURIComponent(user)}`, {
+                        headers: { 
+                            'Authorization': `Bearer ${localStorage.getItem('gsmc_jwt')}`
+                        }
+                    });
+                    
+                    const data = await res.json();
+                    
+                    const cardHtml = `
+                        <div class="intel-card" style="border-left: 2px solid ${res.ok ? 'var(--neon)' : 'var(--danger)'}; animation: fadeIn 0.4s ease-out;">
+                            <div style="display:flex; justify-content:space-between; align-items:center, margin-bottom:15px; border-bottom:1px solid #222; padding-bottom:10px;">
+                                <div>
+                                    <h4 style="margin:0; color:#fff; font-size:1rem;">${data.username || user.toUpperCase()}</h4>
+                                    <p style="margin:0; font-size:0.6rem; color:#666;">${res.ok ? `PROCESSED OUTFITS: ${data.outfits?.length || 0}` : `ERROR: ${data.message}`}</p>
+                                </div>
+                                ${res.ok ? `
+                                <button onclick="openDeepIntel('${data.username}')" style="width:auto; padding:5px 15px; background:rgba(0,255,136,0.1); border:1px solid var(--neon); color:var(--neon); font-size:0.6rem;">
+                                    FULL INTEL
+                                </button>` : ''}
+                            </div>
+                            
+                            ${!res.ok ? `
+                                <div style="color:var(--danger); font-size:0.7rem; padding:20px; text-align:center;">${data.message || 'UPLINK FAILED'}</div>
+                            ` : `
+                                <div class="outfit-grid" style="grid-template-columns: repeat(5, 1fr);">
+                                    ${data.outfits && data.outfits.length > 0 ? 
+                                        data.outfits.map(o => `
+                                            <div class="outfit-card">
+                                                <img src="${o.thumbnail}" class="outfit-img" loading="lazy">
+                                                <span class="outfit-name" title="${o.name}">${o.name || "UNNAMED"}</span>
+                                            </div>
+                                        `).join('') : 
+                                        '<div style="grid-column: 1/-1; padding:20px; color:#444; font-size:0.6rem; text-align:center;">REDACTED / PRIVATE</div>'
+                                    }
+                                </div>
+                            `}
+                        </div>
+                    `;
+                    
+                    resultsContainer.innerHTML += cardHtml;
+                    if (res.ok) successCount++;
+
+                } catch (err) {
+                    resultsContainer.innerHTML += `
+                        <div class="intel-card" style="border-left: 2px solid var(--danger);">
+                            <h4 style="color:var(--danger);">${user.toUpperCase()}</h4>
+                            <p style="color:#666; font-size:0.65rem;">NETWORK FAILURE: ${err.message}</p>
+                        </div>
+                    `;
+                }
+
+                // Update Progress
+                const percent = Math.round(((i + 1) / total) * 100);
+                progressBar.style.width = `${percent}%`;
+                progressPercent.innerText = `${percent}%`;
+
+                // 10s Delay between subjects (except last)
+                if (i < total - 1) {
+                    let countdown = 10;
+                    while (countdown > 0) {
+                        progressStatus.innerText = `COOLING DOWN: ${countdown}s (STABILITY LOCK)`;
+                        await new Promise(r => setTimeout(r, 1000));
+                        countdown--;
+                    }
+                }
+            }
+
+            progressStatus.innerText = `BATCH COMPLETE: ${successCount}/${total} SUBJECTS RESOLVED`;
+            btn.disabled = false;
+            btn.innerHTML = `<i data-lucide="zap"></i> FETCH BATCH`;
+            refreshIcons();
         }
 
         function triggerGroupIntel() {

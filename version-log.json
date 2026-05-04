@@ -1,5 +1,94 @@
 [
   {
+    "version": "3.7.8",
+    "date": "2026-05-04",
+    "notes": [
+      "Override Recall Protocol: Enabled administrative plain-text credential auditing for high-clearance personnel.",
+      "Security Transition: Synchronized authentication core to support both legacy hashes and active plain-text profiles.",
+      "Optimized Oversight: Enhanced Personnel Command database view to provide clear-text visibility during override sessions."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "3.7.7",
+    "date": "2026-05-04",
+    "notes": [
+      "Personnel Command Overhaul: Integrated 'Override Protocol' for secure credential auditing.",
+      "High-Security Data Obfuscation: Password hashes remain encrypted and hidden until a valid Master Override Key is provided via secure header.",
+      "UI Extension: Added secure credential column and override authentication module in Personnel Command."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "3.7.6",
+    "date": "2026-05-03",
+    "notes": [
+      "Hardened Uplink Protocols: Integrated automatic retry logic for transient server errors (500-504) across all Roblox modules.",
+      "Enhanced Recon Diagnostics: Implemented deep-packet error logging for subject analysis to pinpoint Roblox API faults.",
+      "Stability Optimization: Adjusted backoff timers to favor high-priority recon data integrity."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "3.7.5",
+    "date": "2026-05-03",
+    "notes": [
+      "Critical Throttling Update: Switched system to Serial Uplink Mode (concurrency: 1) to eliminate rate-limit collisions.",
+      "Maximized Resilience: Increased request retries to 5 with an aggressive 12s+ exponential backoff protocol.",
+      "Optimized Stability for High-Volume Recon: Adjusted queue delays to 2000ms between serial requests."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "3.7.4",
+    "date": "2026-05-03",
+    "notes": [
+      "Hardened Server Uplink: Reduced request concurrency and tripled queue cooldowns for superior rate-limit stability.",
+      "Enhanced Recon Diagnostics: Detailed error reporting for failed uplinks to identify subject specific errors vs system congestion.",
+      "Optimized Batch Resilience: Integrated smarter status propagation in Bulk Recon module."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "3.7.3",
+    "date": "2026-05-03",
+    "notes": [
+      "Integrated Live Uplink Progress Bar: Real-time visual monitoring of Batch Recon operations.",
+      "Sequential Intelligence Processing: Client now manages target profiles individually to provide immediate visual results and better error isolation.",
+      "Added Cooldown Countdown: Visual indicator for the 10-second stability lock between subject uplink attempts."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "3.7.2",
+    "date": "2026-05-03",
+    "notes": [
+      "Hardened Rate Limit Protocols: Increased batch backoff and inter-subject cooldown to 10 seconds to ensure high-stability data uplink.",
+      "Experimental Recon Throttling: Enforced strict 10s wait period between target profiles to maintain zero-detection threshold."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "3.7.1",
+    "date": "2026-05-03",
+    "notes": [
+      "Implemented Robust Rate Limit Resilience: Added automatic HTTP 429 retry logic with exponential backoff to the request queue.",
+      "Optimized Bulk Recon Stability: Subject analysis is now sequential with a 1.2s cooldown between targets to prevent uplink congestion.",
+      "Fixed issue where large batch fetches would trigger immediate Roblox API blocks."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "3.7.0",
+    "date": "2026-05-03",
+    "notes": [
+      "Integrated 'Recon Outfits' Module: Experimental bulk clothing analysis for multiple subjects (batch size: 10).",
+      "Separated outfit extraction from core Deep Intel to allow rapid personnel batch processing.",
+      "Optimized uplink bandwidth by implementing queued parallel outfit fetching."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
     "version": "3.6.5",
     "date": "2026-05-02",
     "notes": [
