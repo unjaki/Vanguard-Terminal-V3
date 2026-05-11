@@ -1,5 +1,53 @@
 [
   {
+    "version": "3.8.4",
+    "date": "2026-05-05",
+    "notes": [
+      "Intelligence Uplink Patch: Corrected RB-API protocol to honor global proxy configurations.",
+      "Diagnostic Enhancement: Integrated per-request URL tracking for Badge Walker auditing.",
+      "Auth Stability: Resolved transient 401 Unauthorized errors during high-volume recon sessions."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "3.8.3",
+    "date": "2026-05-05",
+    "notes": [
+      "UI Containment Patch: Fixed structural leak in Unit Intel module where recon tools overflowed into other system sectors.",
+      "Tab Navigation Stability: Enforced strict DOM partitioning for command modules."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "3.8.2",
+    "date": "2026-05-05",
+    "notes": [
+      "Hierarchy Realignment: Re-indexed Noobic Sector (NS) as the Parent Command Authority.",
+      "Operational Chain of Command: GSMC prioritized under NS oversight; CBRN nested under GSMC command.",
+      "UI Refinement: Group Intel cards restructured for top-down strategic visibility."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "3.8.1",
+    "date": "2026-05-05",
+    "notes": [
+      "Uplink Correction: Updated Allied Sector (Noobia) comms protocols with corrected Discord invite identifiers.",
+      "Stability Patch: Resolved 404 Uplink errors in Unit Intel module."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "3.8.0",
+    "date": "2026-05-05",
+    "notes": [
+      "Integrated Live Discord Intelligence: Real-time population tracking for GSMC and Allied sectors.",
+      "Visual Sector Profiling: Dynamic guild splash/banner rendering for high-fidelity unit intelligence.",
+      "Refined CBRN Infrastructure: Nested CBRN intel under parent GSMC command authority."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
     "version": "3.7.8",
     "date": "2026-05-04",
     "notes": [

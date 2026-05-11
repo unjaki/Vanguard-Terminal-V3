@@ -83,9 +83,72 @@
         .intel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; border-bottom: 1px solid #222; padding-bottom: 20px; }
         .intel-search-box { background: #111; padding: 20px; border: 1px solid #222; display: flex; gap: 10px; align-items: center; margin-bottom: 30px; }
         .intel-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
-        .intel-card { background: #121212; border: 1px solid #1a1a1a; padding: 20px; }
-        .intel-card h4 { margin: 0 0 15px 0; font-size: 0.7rem; color: #555; text-transform: uppercase; letter-spacing: 2px; display: flex; align-items: center; gap: 8px; }
-        .intel-value { font-size: 1.4rem; font-weight: bold; color: var(--neon); }
+        .intel-card {
+            background: #121212;
+            border: 1px solid #1a1a1a;
+            padding: 0;
+            position: relative;
+            overflow: hidden;
+        }
+        .intel-card h4 { margin: 15px 15px 10px 15px; font-size: 0.7rem; color: #555; text-transform: uppercase; letter-spacing: 2px; display: flex; align-items: center; gap: 8px; }
+        .intel-value { font-size: 1.4rem; font-weight: bold; color: var(--neon); padding: 0 15px 15px 15px; }
+
+        .discord-splash {
+            height: 80px;
+            width: 100%;
+            background-size: cover;
+            background-position: center;
+            opacity: 0.2;
+            position: absolute;
+            top: 0;
+            left: 0;
+            mask-image: linear-gradient(to bottom, rgba(0,0,0,1), rgba(0,0,0,0));
+            -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,1), rgba(0,0,0,0));
+        }
+
+        .discord-stats {
+            text-align: right;
+            font-family: monospace;
+            font-size: 0.6rem;
+            padding: 15px;
+        }
+
+        .discord-count {
+            display: block;
+            color: #fff;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        .online-dot {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            background: #00ff00;
+            border-radius: 50%;
+            margin-right: 4px;
+            box-shadow: 0 0 5px #00ff00;
+        }
+
+        .pulse-offline {
+            color: #444;
+            animation: pulse-dim 2s infinite;
+        }
+
+        @keyframes pulse-dim {
+            0% { opacity: 0.5; }
+            50% { opacity: 0.2; }
+            100% { opacity: 0.5; }
+        }
+
+        .sub-stat {
+            background: rgba(255,255,255,0.03);
+            padding: 5px 10px;
+            border: 1px solid #111;
+            font-size: 0.6rem;
+            color: #555;
+            text-transform: uppercase;
+        }
         .rank-list { max-height: 500px; overflow-y: auto; padding-right: 5px; }
         .rank-item { padding: 12px; background: #161616; border: 1px solid #1a1a1a; margin-bottom: 5px; display: flex; justify-content: space-between; font-size: 0.75rem; }
         .rank-item span:last-child { color: var(--neon); font-family: monospace; }
@@ -330,8 +393,85 @@
             <div id="group-intel" class="tab-content">
                 <div class="intel-header">
                     <div>
-                        <h2 style="font-size: 1.1rem; margin: 0;">Unit Intelligence</h2>
-                        <p style="font-size: 0.7rem; color: #555; margin: 5px 0 0 0;">ROBLOX GROUP DATABASE OVERSIGHT</p>
+                        <h2 style="font-size: 1.1rem; margin: 0;">Unit Intel</h2>
+                        <p style="font-size: 0.7rem; color: #555; margin: 5px 0 0 0;">CROSS-SECTOR ORGANIZATION DATABASE</p>
+                    </div>
+                </div>
+
+                <div id="group-intel-container" style="display: flex; flex-direction: column; gap: 20px;">
+                    <!-- NOOBIC SECTOR (NS) - PARENT BLOCK -->
+                    <div class="intel-card" id="intel-ns" style="border-left: 3px solid #00aaff;">
+                        <div class="discord-splash" id="splash-ns"></div>
+                        <div style="padding: 0; position: relative; z-index: 2;">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; padding: 20px 20px 0 20px;">
+                                <div>
+                                    <h3 style="margin: 0; color: #fff; letter-spacing: 2px; font-size: 1rem;">NOOBIC SECTOR</h3>
+                                    <p style="font-size: 0.6rem; color: #00aaff; margin: 2px 0 0 0;">PARENT COMMAND BLOCK</p>
+                                </div>
+                                <div id="stats-ns" class="discord-stats" style="padding: 0;">
+                                    <span class="pulse-offline">UPLINKING...</span>
+                                </div>
+                            </div>
+                            <div style="margin: 15px 20px; grid-template-columns: 1fr 1fr; display: grid; gap: 10px;">
+                                <div class="sub-stat">ID: <span style="color:#fff;">1008942731</span></div>
+                                <div class="sub-stat">STATUS: <span style="color:#00aaff;">OVERSEER</span></div>
+                            </div>
+                            <div style="padding: 0 20px 20px 20px;">
+                                <button onclick="window.open('https://discord.gg/noobia')" style="width: 100%; border: 1px solid #00aaff; color: #00aaff; background: rgba(0,170,255,0.05); font-size: 0.65rem; height: 32px;">
+                                    JOINT COMMS UPLINK
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- GSMC SECTOR (UNDER NS) -->
+                    <div class="intel-card" id="intel-gsmc" style="border-left: 3px solid var(--neon);">
+                        <div class="discord-splash" id="splash-gsmc"></div>
+                        <div style="padding: 0; position: relative; z-index: 2;">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; padding: 20px 20px 0 20px;">
+                                <div>
+                                    <h3 style="margin: 0; color: #fff; letter-spacing: 2px; font-size: 1rem;">GSMC SECTOR</h3>
+                                    <p style="font-size: 0.6rem; color: var(--neon); margin: 2px 0 0 0;">COMMAND SECTOR (UNDER NS AUTHORITY)</p>
+                                </div>
+                                <div id="stats-gsmc" class="discord-stats" style="padding: 0;">
+                                    <span class="pulse-offline">UPLINKING...</span>
+                                </div>
+                            </div>
+                            <div style="margin: 15px 20px; grid-template-columns: 1fr 1fr; display: grid; gap: 10px;">
+                                <div class="sub-stat">ID: <span style="color:#fff;">288142915</span></div>
+                                <div class="sub-stat">STATUS: <span style="color:#00ff00;">STABLE</span></div>
+                            </div>
+                            <div style="padding: 0 20px 20px 20px;">
+                                <button onclick="window.open('https://discord.gg/gsmc')" style="width: 100%; border: 1px solid var(--neon); color: var(--neon); background: rgba(0,255,136,0.05); font-size: 0.65rem; height: 32px;">
+                                    JOINT COMMS UPLINK
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- CBRN DIVISION (UNDER GSMC) -->
+                    <div class="intel-card" id="intel-cbrn" style="border-left: 3px solid #ffaa00;">
+                        <div style="padding: 20px;">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                                <div>
+                                    <h3 style="margin: 0; color: #fff; letter-spacing: 2px; font-size: 1rem;">CBRN DIVISION</h3>
+                                    <p style="font-size: 0.6rem; color: #ffaa00; margin: 2px 0 0 0;">SPECIALIZED DIVISION (UNDER GSMC AUTHORITY)</p>
+                                </div>
+                                <div class="discord-stats" style="padding: 0;">
+                                    <span style="color: #444; font-size: 0.55rem; letter-spacing: 1px;">NESTED HIERARCHY</span>
+                                </div>
+                            </div>
+                            <div style="margin-top: 15px; grid-template-columns: 1fr 1fr; display: grid; gap: 10px;">
+                                <div class="sub-stat">ID: <span style="color:#fff;">423217030</span></div>
+                                <div class="sub-stat">SCOPE: <span style="color:#ffaa00;">BIO-HAZARD</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="intel-header" style="margin-top: 40px; border-top: 1px solid #1a1a1a; padding-top: 20px;">
+                    <div>
+                        <h2 style="font-size: 0.9rem; margin: 0; color: #555;">Manual Recon Uplink</h2>
                     </div>
                 </div>
 
@@ -344,32 +484,32 @@
                         <option value="1008942731">NS</option>
                     </select>
                     <input type="text" id="group-id-input" placeholder="OR ENTER GROUP ID" style="margin: 0;" value="288142915">
-                    <button onclick="triggerGroupIntel()" style="width: 140px; margin: 0;">CONNECT</button>
+                    <button onclick="loadGroupIntel(document.getElementById('group-id-input').value)" style="width: 140px; margin: 0;">CONNECT</button>
                 </div>
 
                 <div id="intel-display" class="hidden">
                     <div class="intel-grid">
                         <div class="left-col">
-                            <div class="intel-card" style="margin-bottom: 20px;">
+                            <div class="intel-card" style="margin-bottom: 20px; padding: 20px;">
                                 <h4><i data-lucide="info"></i> GROUP OVERVIEW</h4>
                                 <h3 id="intel-group-name" style="margin: 0; color: #fff;">-</h3>
                                 <p id="intel-group-desc" style="font-size: 0.75rem; color: #888; margin-top: 10px; line-height: 1.6;"></p>
                             </div>
 
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-                                <div class="intel-card">
+                                <div class="intel-card" style="padding: 20px;">
                                     <h4><i data-lucide="users"></i> MEMBERS</h4>
-                                    <div id="intel-member-count" class="intel-value">0</div>
+                                    <div id="intel-member-count" class="intel-value" style="padding:0;">0</div>
                                 </div>
-                                <div class="intel-card">
+                                <div class="intel-card" style="padding: 20px;">
                                     <h4><i data-lucide="user"></i> OWNER</h4>
-                                    <div id="intel-owner" class="intel-value" style="font-size: 1.1rem;">-</div>
+                                    <div id="intel-owner" class="intel-value" style="font-size: 1.1rem; padding:0;">-</div>
                                 </div>
                             </div>
                         </div>
 
                         <div class="right-col">
-                            <div class="intel-card" style="height: 100%; box-sizing: border-box;">
+                            <div class="intel-card" style="height: 100%; box-sizing: border-box; padding: 20px;">
                                 <h4><i data-lucide="trending-up"></i> HIERARCHY / RANKS</h4>
                                 <div id="intel-rank-list" class="rank-list">
                                     <!-- Ranks here -->
@@ -389,7 +529,7 @@
                     </div>
                 </div>
                 <div class="intel-card">
-                    <p style="color: #666; font-size: 0.8rem;">Terminal Version: 3.7.8-OPERATIONAL</p>
+                    <p style="color: #666; font-size: 0.8rem;">Terminal Version: 3.8.4-OPERATIONAL</p>
                     <p style="color: #666; font-size: 0.8rem;">Uplink Status: <span style="color: var(--neon)">ENCRYPTED</span></p>
                     <p style="color: #666; font-size: 0.8rem;">Assigned Scope: <span id="current-scope-display" style="color: #fff; font-weight: bold;">-</span></p>
                 </div>
@@ -501,6 +641,9 @@
                 document.getElementById('group-id-input').value = availableUnits[0].id;
                 loadGroupIntel(availableUnits[0].id);
             }
+            
+            triggerGroupIntel();
+            refreshIcons();
         }
 
         async function loadPersonnelManagement() {
@@ -877,8 +1020,36 @@
         }
 
         function triggerGroupIntel() {
-            const val = document.getElementById('group-id-input').value;
-            loadGroupIntel(val);
+            loadDiscordIntel('gsmc', 'gsmc');
+            loadDiscordIntel('noobia', 'ns');
+        }
+
+        async function loadDiscordIntel(inviteCode, elementId) {
+            const statsContainer = document.getElementById(`stats-${elementId}`);
+            const splashContainer = document.getElementById(`splash-${elementId}`);
+
+            try {
+                const res = await fetch(`${CONFIG.API_BASE}/discord-intel/${inviteCode}`);
+                const data = await res.json();
+
+                if (res.ok) {
+                    // Update Stats
+                    statsContainer.innerHTML = `
+                        <span class="discord-count">${data.approximate_member_count.toLocaleString()} <span style="font-size:0.5rem; color:#666;">UNITS</span></span>
+                        <span style="color:#00ff00; font-size:0.55rem; letter-spacing:1px;"><span class="online-dot"></span>${data.approximate_presence_count.toLocaleString()} ONLINE</span>
+                    `;
+
+                    // Update Visuals
+                    const guild = data.guild;
+                    if (guild.splash) {
+                        splashContainer.style.backgroundImage = `url('https://cdn.discordapp.com/splashes/${guild.id}/${guild.splash}.png?size=600')`;
+                    } else if (guild.banner) {
+                        splashContainer.style.backgroundImage = `url('https://cdn.discordapp.com/banners/${guild.id}/${guild.banner}.png?size=600')`;
+                    }
+                }
+            } catch (err) {
+                console.error("Discord Intel Uplink Failed:", err);
+            }
         }
 
         async function loadGroupIntel(groupId) {

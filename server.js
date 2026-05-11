@@ -18,10 +18,17 @@ const { google } = require('googleapis');
 const User = require(path.join(__dirname, 'models', 'User.js')); 
 const Division = require(path.join(__dirname, 'models', 'divisions.js'));
 
-const ROBLOX_PROXY = process.env.ROBLOX_PROXY || "roblox.com";
+const ROBLOX_PROXY = (process.env.ROBLOX_PROXY || "roblox.com").replace(/^https?:\/\//, '').replace(/\/$/, '');
 
 const rbApi = (subdomain, endpoint) => {
-    return `https://${subdomain}.roblox.com${endpoint}`;
+    if (ROBLOX_PROXY === "roblox.com") {
+        return `https://${subdomain}.roblox.com${endpoint}`;
+    }
+    // Support common proxy patterns (subdomain.proxy.com or proxy.com/subdomain)
+    if (ROBLOX_PROXY.includes('roproxy.com')) {
+        return `https://${subdomain}.${ROBLOX_PROXY}${endpoint}`;
+    }
+    return `https://${ROBLOX_PROXY}/${subdomain}${endpoint}`;
 };
 
 const app = express();
@@ -103,6 +110,9 @@ class RobloxRequestQueue {
                             this._process();
                         }, backoff);
                     } else {
+                        if (status === 401) {
+                            console.error(`[QUEUE] ❌ 401 Unauthorized for ${item.url}. Check proxy or credentials. Headers:`, JSON.stringify(item.options?.headers || {}));
+                        }
                         item.reject(error);
                     }
                 }
@@ -707,16 +717,6 @@ app.get('/deep-intel/:username', protectTier(2), async (req, res) => {
             let attempts = 0;
             let sampleBadges = [];
             const startTime = Date.now();
-            
-            // Create a high-performance walker client with keepAlive
-            const walkerAxios = axios.create({
-                httpAgent: new http.Agent({ keepAlive: true, maxSockets: 100 }),
-                httpsAgent: new https.Agent({ keepAlive: true, maxSockets: 100 }),
-                timeout: 5000,
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-                }
-            });
 
             try {
                 // Initial probe
@@ -724,7 +724,8 @@ app.get('/deep-intel/:username', protectTier(2), async (req, res) => {
                     // Aggressive threshold: Use up to 9.8s of the 10s window
                     if (Date.now() - startTime > 9800) break; 
 
-                    const res = await robloxQueue.enqueue(rbApi('badges', `/v1/users/${userId}/badges?limit=100&cursor=${cursor}`), { timeout: 5000 });
+                    const badgeUrl = rbApi('badges', `/v1/users/${userId}/badges?limit=100&cursor=${cursor}`);
+                    const res = await robloxQueue.enqueue(badgeUrl, { timeout: 5000 });
                     const data = res.data;
                     if (!data) break;
 
@@ -739,7 +740,8 @@ app.get('/deep-intel/:username', protectTier(2), async (req, res) => {
                 }
                 return { count: total, complete: false, sample: sampleBadges };
             } catch (e) {
-                console.warn(`[INTEL] Badge Walker interrupted at ${total}:`, e.message);
+                const failingUrl = e.config?.url || "Unknown";
+                console.warn(`[INTEL] Badge Walker interrupted at ${total} [URL: ${failingUrl}]:`, e.message);
                 return { count: total, complete: false, sample: sampleBadges };
             }
         })();
@@ -1040,6 +1042,22 @@ app.post('/sync-to-orbat', protectTier(3), async (req, res) => {
         console.error("ORBAT Sync Error:", err.message);
         if (err.response?.data) console.error("Sheets API Details:", JSON.stringify(err.response.data));
         res.status(500).json({ error: "Sync Failed", details: err.message });
+    }
+});
+
+// --- DISCORD INTELLIGENCE ROUTE ---
+app.get('/discord-intel/:code', async (req, res) => {
+    try {
+        const { code } = req.params;
+        // Fetch invite data with member counts
+        const response = await axios.get(`https://discord.com/api/v10/invites/${code}?with_counts=true&with_expiration=true`);
+        res.json(response.data);
+    } catch (err) {
+        console.error(`[DISCORD] Failed to fetch intel for ${req.params.code}:`, err.message);
+        res.status(err.response?.status || 500).json({ 
+            message: "Discord Uplink Failed", 
+            error: err.response?.data || err.message 
+        });
     }
 });
 
