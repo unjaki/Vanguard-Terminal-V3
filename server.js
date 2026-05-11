@@ -18,17 +18,8 @@ const { google } = require('googleapis');
 const User = require(path.join(__dirname, 'models', 'User.js')); 
 const Division = require(path.join(__dirname, 'models', 'divisions.js'));
 
-const ROBLOX_PROXY = (process.env.ROBLOX_PROXY || "roblox.com").replace(/^https?:\/\//, '').replace(/\/$/, '');
-
 const rbApi = (subdomain, endpoint) => {
-    if (ROBLOX_PROXY === "roblox.com") {
-        return `https://${subdomain}.roblox.com${endpoint}`;
-    }
-    // Support common proxy patterns (subdomain.proxy.com or proxy.com/subdomain)
-    if (ROBLOX_PROXY.includes('roproxy.com')) {
-        return `https://${subdomain}.${ROBLOX_PROXY}${endpoint}`;
-    }
-    return `https://${ROBLOX_PROXY}/${subdomain}${endpoint}`;
+    return `https://${subdomain}.roblox.com${endpoint}`;
 };
 
 const app = express();

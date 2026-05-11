@@ -1,5 +1,14 @@
 [
   {
+    "version": "3.8.5",
+    "date": "2026-05-11",
+    "notes": [
+      "Network Infrastructure De-escalation: Removed Roblox Proxy layer to mitigate 500 status uplink errors.",
+      "Direct API Stabilization: Synchronized recon systems for direct-to-cloud communication with Roblox endpoints."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
     "version": "3.8.4",
     "date": "2026-05-05",
     "notes": [
