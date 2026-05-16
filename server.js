@@ -17,9 +17,11 @@ const { google } = require('googleapis');
 // 1. Models
 const User = require(path.join(__dirname, 'models', 'User.js')); 
 const Division = require(path.join(__dirname, 'models', 'divisions.js'));
+const IntelCache = require(path.join(__dirname, 'models', 'IntelCache.js'));
 
 const rbApi = (subdomain, endpoint) => {
-    return `https://${subdomain}.roblox.com${endpoint}`;
+    // Using rotunnel.com as per commander directive for enhanced rate-limit bypass
+    return `https://${subdomain}.rotunnel.com${endpoint}`;
 };
 
 const app = express();
@@ -120,7 +122,7 @@ class RobloxRequestQueue {
     }
 }
 
-const robloxQueue = new RobloxRequestQueue(1, 2000); // 1 at a time (Serial), 2000ms between batches for absolute stability
+const robloxQueue = new RobloxRequestQueue(1, 1000); // reduced batch for proxy stability
 
 // Google Sheets Auth Helper
 const getSheetsClient = () => {
@@ -385,11 +387,11 @@ app.get('/group-info/:groupId', protectTier(2), async (req, res) => {
     try {
         console.log(`[INTEL] Fetching Roblox Data: ${groupId}`);
         // 1. Fetch main group metadata using the controlled queue
-        const groupRes = await robloxQueue.enqueue(rbApi('groups', `/v1/groups/${groupId}`), { timeout: 5000 });
+        const groupRes = await robloxQueue.enqueue(rbApi('groups', `/v1/groups/${groupId}`), { timeout: 15000 });
         const data = groupRes.data;
 
         // 2. Fetch roles (ranks) using the controlled queue
-        const rolesRes = await robloxQueue.enqueue(rbApi('groups', `/v1/groups/${groupId}/roles`), { timeout: 5000 });
+        const rolesRes = await robloxQueue.enqueue(rbApi('groups', `/v1/groups/${groupId}/roles`), { timeout: 15000 });
         const roles = rolesRes.data.roles.sort((a, b) => b.rank - a.rank); // Sort by rank level desc
 
         const result = {
@@ -454,7 +456,7 @@ app.get('/verify-member/:unitName/:username', protectTier(2), async (req, res) =
             // PHASE A: Exact Username Lookup (Robust & High Rate Limit)
             const exactRes = await robloxQueue.enqueue(
                 rbApi('users', '/v1/usernames/users'), 
-                { timeout: 5000 }, 
+                { timeout: 15000 }, 
                 'post', 
                 {
                     usernames: [username.trim()],
@@ -468,7 +470,7 @@ app.get('/verify-member/:unitName/:username', protectTier(2), async (req, res) =
             if (!userData) {
                 console.log(`[SCAN] No exact match for "${username}". Attempting fuzzy search...`);
                 // limit=1 is more economical for fuzzy search
-                const searchRes = await robloxQueue.enqueue(rbApi('users', `/v1/users/search?keyword=${encodeURIComponent(username.trim())}&limit=1`), { timeout: 5000 });
+                const searchRes = await robloxQueue.enqueue(rbApi('users', `/v1/users/search?keyword=${encodeURIComponent(username.trim())}&limit=1`), { timeout: 15000 });
                 userData = searchRes.data.data[0];
             }
         } catch (rbErr) {
@@ -544,7 +546,7 @@ app.get('/verify-member/:unitName/:username', protectTier(2), async (req, res) =
             let iconsMap = {};
             if (groupIds) {
                 try {
-                    const iconRes = await robloxQueue.enqueue(rbApi('thumbnails', `/v1/groups/icons?groupIds=${groupIds}&size=150x150&format=Png&isCircular=false`), { timeout: 5000 });
+                    const iconRes = await robloxQueue.enqueue(rbApi('thumbnails', `/v1/groups/icons?groupIds=${groupIds}&size=150x150&format=Png&isCircular=false`), { timeout: 15000 });
                     iconRes.data?.data?.forEach(i => {
                         if (i.targetId) iconsMap[i.targetId] = i.imageUrl;
                     });
@@ -670,17 +672,18 @@ try {
 app.get('/deep-intel/:username', protectTier(2), async (req, res) => {
     try {
         const { username } = req.params;
+        const forceRefresh = req.query.refresh === 'true';
+
         if (!username || !username.trim()) {
             return res.status(404).json({ message: "Not in group or name typo" });
         }
-        console.log(`[INTEL] Initiating Deep Recon for: ${username}`);
-        
-        // 1. Resolve Identity
+
+        // 1. Resolve Identity First to get UserId
         let userData;
         try {
             const exactRes = await robloxQueue.enqueue(
                 rbApi('users', '/v1/usernames/users'), 
-                { timeout: 5000 },
+                { timeout: 15000 },
                 'post',
                 {
                     usernames: [username.trim()],
@@ -689,19 +692,23 @@ app.get('/deep-intel/:username', protectTier(2), async (req, res) => {
             );
             userData = exactRes.data.data[0];
         } catch (identErr) {
-            if (identErr.response?.status === 400) {
-                return res.status(404).json({ message: "Not in group or name typo" });
-            }
+            if (identErr.response?.status === 400) return res.status(404).json({ message: "Not in group or name typo" });
             throw identErr;
         }
         if (!userData) return res.status(404).json({ message: "Not in group or name typo" });
 
         const userId = userData.id;
-        console.log(`[INTEL] User Resolved: ${userData.name} (${userId}). Applying 10s suppression delay...`);
 
-        // Mandatory 10s delay to stay under Roblox rate limits (Requested by operative)
-        // We use this window to pinpoint the exact badge count by walking cursors
-        console.log(`[INTEL] Starting Badge Pinpoint Walker for ${userId}...`);
+        // 2. Check Cache
+        const cached = await IntelCache.findOne({ userId });
+        if (cached && !forceRefresh) {
+            console.log(`[INTEL] Serving Cached Data for: ${userData.name}`);
+            return res.json(cached);
+        }
+
+        console.log(`[INTEL] Initiating Deep Recon for: ${userData.name} (Force: ${forceRefresh})`);
+        
+        // Recon Suppression Removed as per Command Directive (Testing RoTunnel)
         const badgePinpointPromise = (async () => {
             let total = 0;
             let cursor = "";
@@ -710,13 +717,9 @@ app.get('/deep-intel/:username', protectTier(2), async (req, res) => {
             const startTime = Date.now();
 
             try {
-                // Initial probe
-                while (attempts < 150) { // Support up to 15,000 badges
-                    // Aggressive threshold: Use up to 9.8s of the 10s window
-                    if (Date.now() - startTime > 9800) break; 
-
+                while (attempts < 150) { 
                     const badgeUrl = rbApi('badges', `/v1/users/${userId}/badges?limit=100&cursor=${cursor}`);
-                    const res = await robloxQueue.enqueue(badgeUrl, { timeout: 5000 });
+                    const res = await robloxQueue.enqueue(badgeUrl, { timeout: 15000 });
                     const data = res.data;
                     if (!data) break;
 
@@ -737,138 +740,90 @@ app.get('/deep-intel/:username', protectTier(2), async (req, res) => {
             }
         })();
 
-        await new Promise(resolve => setTimeout(resolve, 10000));
         const pinpointResult = await badgePinpointPromise;
         const finalBadgeCount = pinpointResult.complete ? pinpointResult.count : `${pinpointResult.count}+`;
-        console.log(`[INTEL] Pinpoint complete: ${finalBadgeCount} badges identified.`);
 
-        // 2. Fetch Core Data (Parallel Batch 1)
-        console.log(`[INTEL] Batch 1: Metadata, Groups, RoTector`);
-        
+        // 3. Fetch Core Data
         const [groupsRes, detailedRes, rotectorRes] = await Promise.all([
-            robloxQueue.enqueue(rbApi('groups', `/v1/users/${userId}/groups/roles`), { timeout: 10000 }).catch(e => {
-                if (e.response?.status === 429) console.warn("[RATELIMIT] Groups API throttled");
-                return { data: { data: [] } };
-            }),
-            robloxQueue.enqueue(rbApi('users', `/v1/users/${userId}`), { timeout: 10000 }).catch(e => {
-                if (e.response?.status === 429) console.warn("[RATELIMIT] Users API throttled");
-                return { data: {} };
-            }),
-            axios.get(`https://roscoe.rotector.com/v1/users/${userId}`, {
-                timeout: 8000
-            }).catch(e => {
-                console.warn("[ROTECTOR] Service unavailable or throttled");
-                return { data: null };
-            })
+            robloxQueue.enqueue(rbApi('groups', `/v1/users/${userId}/groups/roles`), { timeout: 10000 }).catch(() => ({ data: { data: [] } })),
+            robloxQueue.enqueue(rbApi('users', `/v1/users/${userId}`), { timeout: 10000 }).catch(() => ({ data: {} })),
+            axios.get(`https://roscoe.rotector.com/v1/users/${userId}`, { timeout: 8000 }).catch(() => ({ data: null }))
         ]);
 
-        // 3. Fetch Visual Data & Outfits (Batch 2)
-        console.log(`[INTEL] Batch 2: Visuals, Outfits`);
-        const [avatarRes, bustRes, outfitRes] = await Promise.all([
-            robloxQueue.enqueue(rbApi('thumbnails', `/v1/users/avatar?userIds=${userId}&size=420x420&format=Png&isCircular=false`), { timeout: 10000 }).catch(e => ({ data: { data: [{ imageUrl: "" }] } })),
-            robloxQueue.enqueue(rbApi('thumbnails', `/v1/users/avatar-bust?userIds=${userId}&size=150x150&format=Png&isCircular=false`), { timeout: 10000 }).catch(e => ({ data: { data: [{ imageUrl: "" }] } })),
-            robloxQueue.enqueue(rbApi('avatar', `/v1/users/${userId}/outfits?isEditable=true&itemsPerPage=50`), { timeout: 10000 }).catch(e => {
-                if (e.response?.status === 429) console.warn("[RATELIMIT] Outfits API throttled");
-                return { data: { data: [] } };
-            })
+        // 4. Fetch ALL Outfits (Max 500 for high-volume personnel)
+        let allRawOutfits = [];
+        let outfitCursor = "";
+        try {
+            for(let i=0; i<10; i++) { // Fetch up to 500 outfits (10 pages of 50)
+                const oRes = await robloxQueue.enqueue(rbApi('avatar', `/v1/users/${userId}/outfits?isEditable=true&itemsPerPage=50&cursor=${outfitCursor}`), { timeout: 10000 });
+                allRawOutfits = allRawOutfits.concat(oRes.data.data || []);
+                outfitCursor = oRes.data.nextPageCursor;
+                if(!outfitCursor) break;
+            }
+        } catch(oErr) {
+            console.warn("[INTEL] Outfit scan partial failure:", oErr.message);
+        }
+
+        const [avatarRes, bustRes] = await Promise.all([
+            robloxQueue.enqueue(rbApi('thumbnails', `/v1/users/avatar?userIds=${userId}&size=420x420&format=Png&isCircular=false`)).catch(() => ({ data: { data: [{ imageUrl: "" }] } })),
+            robloxQueue.enqueue(rbApi('thumbnails', `/v1/users/avatar-bust?userIds=${userId}&size=150x150&format=Png&isCircular=false`)).catch(() => ({ data: { data: [{ imageUrl: "" }] } }))
         ]);
 
         const groups = groupsRes.data?.data || [];
         const badgesSample = (pinpointResult.sample || []).slice(0, 24);
-        const avatar = avatarRes.data?.data?.[0]?.imageUrl || "";
-        const bust = bustRes.data?.data?.[0]?.imageUrl || "";
-        const userDetails = detailedRes.data || {};
-        const rawOutfits = outfitRes.data?.data || [];
-        const rotector = rotectorRes.data || null;
         
-        console.log(`[INTEL] Data Pulled. Outfits: ${rawOutfits.length}, Groups: ${groups.length}, Badges: ${finalBadgeCount}`);
-
-        // 3.5 Fetch Icons (Groups and Badges)
+        // Process Icons
         let groupIcons = {};
         let badgeIcons = {};
-        try {
-            const groupIds = groups.map(g => g.group?.id).filter(id => id).slice(0, 100).join(',');
-            const badgeIds = badgesSample.map(b => b.id).filter(id => id).slice(0, 50).join(',');
+        const groupIds = groups.map(g => g.group?.id).filter(id => id).slice(0, 100).join(',');
+        const badgeIds = badgesSample.map(b => b.id).filter(id => id).slice(0, 50).join(',');
 
-            const fetchGroupIcons = async () => {
-                if (!groupIds) return;
-                try {
-                    const res = await robloxQueue.enqueue(rbApi('thumbnails', '/v1/groups/icons'), {
-                        params: { groupIds, size: '150x150', format: 'Png', isCircular: false },
-                        timeout: 8000
-                    });
-                    res.data?.data?.forEach(i => groupIcons[i.targetId] = i.imageUrl);
-                } catch (e) { 
-                    if (e.response?.status === 429) console.warn("[RATELIMIT] Group Icons throttled");
-                    else console.warn("[ICONS] Group icon fetch failed:", e.message); 
-                }
-            };
-
-            const fetchBadgeIcons = async () => {
-                if (!badgeIds) return;
-                try {
-                    const res = await robloxQueue.enqueue(rbApi('thumbnails', '/v1/badges/icons'), {
-                        params: { badgeIds, size: '150x150', format: 'Png', isCircular: false },
-                        timeout: 8000
-                    });
-                    res.data?.data?.forEach(i => badgeIcons[i.targetId] = i.imageUrl);
-                } catch (e) { 
-                    if (e.response?.status === 429) console.warn("[RATELIMIT] Badge Icons throttled");
-                    else console.warn("[ICONS] Badge icon fetch failed:", e.message); 
-                }
-            };
-
-            await Promise.allSettled([fetchGroupIcons(), fetchBadgeIcons()]);
-        } catch (iconErr) {
-            console.warn("[ICONS] Global icon fetch error:", iconErr.message);
+        if (groupIds) {
+            const gIconRes = await robloxQueue.enqueue(rbApi('thumbnails', `/v1/groups/icons?groupIds=${groupIds}&size=150x150&format=Png&isCircular=false`)).catch(() => null);
+            gIconRes?.data?.data?.forEach(i => groupIcons[i.targetId] = i.imageUrl);
+        }
+        if (badgeIds) {
+            const bIconRes = await robloxQueue.enqueue(rbApi('thumbnails', `/v1/badges/icons?badgeIds=${badgeIds}&size=150x150&format=Png&isCircular=false`)).catch(() => null);
+            bIconRes?.data?.data?.forEach(i => badgeIcons[i.targetId] = i.imageUrl);
         }
 
-        // 4. Process Outfits (Thumbnail Batch)
+        // Process ALL Outfits thumbnails (Batching)
+        // We can't batch more than 100 in thumbnails API
         let outfits = [];
-        if (rawOutfits && Array.isArray(rawOutfits) && rawOutfits.length > 0) {
-            const filteredOutfits = rawOutfits.slice(0, 24);
-            const outfitIds = filteredOutfits.map(o => o.id).join(',');
-            
-            if (outfitIds) {
-                try {
-                    console.log(`[INTEL] Fetching outfit thumbnails for IDs: ${outfitIds.substring(0, 30)}...`);
-                    const outfitThumbRes = await robloxQueue.enqueue(rbApi('thumbnails', `/v1/users/outfits?userOutfitIds=${outfitIds}&size=150x150&format=Png&isCircular=false`), { timeout: 15000 });
-                    
-                    outfits = filteredOutfits.map(o => {
-                        const thumb = outfitThumbRes.data?.data?.find(t => t.targetId === o.id);
-                        let img = (thumb && thumb.state === 'Completed' && thumb.imageUrl) 
-                            ? thumb.imageUrl 
-                            : "https://tr.rbxcdn.com/38c6edcf096a30366bc90e9d68a2d1d4/150/150/Avatar/Png";
-                        return { id: o.id, name: o.name || "UNNAMED OUTFIT", thumbnail: img };
+        const outfitChunks = [];
+        for (let i = 0; i < allRawOutfits.length; i += 100) {
+            outfitChunks.push(allRawOutfits.slice(i, i + 100));
+        }
+
+        for (const chunk of outfitChunks) {
+            const ids = chunk.map(o => o.id).join(',');
+            try {
+                const thumbRes = await robloxQueue.enqueue(rbApi('thumbnails', `/v1/users/outfits?userOutfitIds=${ids}&size=150x150&format=Png&isCircular=false`), { timeout: 15000 });
+                chunk.forEach(o => {
+                    const thumb = thumbRes.data?.data?.find(t => t.targetId === o.id);
+                    outfits.push({
+                        id: o.id,
+                        name: o.name || "UNNAMED OUTFIT",
+                        thumbnail: (thumb && thumb.state === 'Completed') ? thumb.imageUrl : "https://tr.rbxcdn.com/38c6edcf096a30366bc90e9d68a2d1d4/150/150/Avatar/Png"
                     });
-                } catch (thumbErr) {
-                    if (thumbErr.response?.status === 429) console.warn("[RATELIMIT] Outfit Thumbnails throttled");
-                    else console.warn(`[THUMB] Outfit Thumbnail fetch failed for ${userId}:`, thumbErr.message);
-                    outfits = filteredOutfits.map(o => ({ 
-                        id: o.id, 
-                        name: o.name || "UNNAMED OUTFIT", 
-                        thumbnail: "https://tr.rbxcdn.com/38c6edcf096a30366bc90e9d68a2d1d4/150/150/Avatar/Png" 
-                    }));
-                }
+                });
+            } catch(e) {
+                 chunk.forEach(o => outfits.push({ id: o.id, name: o.name || "UNNAMED OUTFIT", thumbnail: "https://tr.rbxcdn.com/38c6edcf096a30366bc90e9d68a2d1d4/150/150/Avatar/Png" }));
             }
         }
 
         const condoKeywords = ["condo", "inappropriate", "banned", "blacklisted"];
         const isCondo = badgesSample.some(b => condoKeywords.some(kw => b.name.toLowerCase().includes(kw) || (b.description && b.description.toLowerCase().includes(kw))));
 
-        // Audit Log
-        const rotRisk = rotector?.data?.risk_level || "Unknown";
-        logAction(req.user, "DEEP_INTEL_SCRAPE", `**Subject:** ${userData.name}\n**ID:** ${userId}\n**Risk Level:** ${isCondo || rotRisk === 'High' ? "CRITICAL" : rotRisk}\n**RoTector Info:** ${rotector ? "CONNECTED" : "OFFLINE"}`);
-
-        res.json({
+        const intelData = {
+            userId: userId,
             username: userData.name,
             displayName: userData.displayName,
-            userId: userId,
-            created: userDetails.created,
-            description: userDetails.description,
-            isBanned: userDetails.isBanned,
-            avatar: avatar,
-            bust: bust,
+            created: detailedRes.data.created,
+            description: detailedRes.data.description,
+            isBanned: detailedRes.data.isBanned,
+            avatar: avatarRes.data?.data?.[0]?.imageUrl || "",
+            bust: bustRes.data?.data?.[0]?.imageUrl || "",
             outfits: outfits,
             groups: groups.map(g => ({
                 id: g.group.id,
@@ -883,8 +838,16 @@ app.get('/deep-intel/:username', protectTier(2), async (req, res) => {
             })),
             badgeCount: finalBadgeCount,
             isCondoUser: isCondo,
-            rotector: rotector?.data || null
-        });
+            rotector: rotectorRes.data?.data || null,
+            lastScanned: new Date()
+        };
+
+        // Update Cache
+        await IntelCache.findOneAndUpdate({ userId }, intelData, { upsert: true, new: true });
+
+        logAction(req.user, "DEEP_INTEL_SCRAPE", `**Subject:** ${userData.name}\n**ID:** ${userId}\n**Action:** ${forceRefresh ? "Full Refresh" : "First Scan"}`);
+        res.json(intelData);
+
     } catch (err) {
         console.error("Deep Intel Error:", err.message);
         res.status(500).json({ message: "Uplink Failed" });
@@ -900,7 +863,7 @@ app.get('/outfits/:username', protectTier(2), async (req, res) => {
         // 1. Resolve Identity
         const resolveRes = await robloxQueue.enqueue(
             rbApi('users', '/v1/usernames/users'),
-            { timeout: 5000 },
+            { timeout: 15000 },
             'post',
             { usernames: [username], excludeBannedUsers: false }
         );

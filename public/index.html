@@ -157,6 +157,27 @@
         .badge-neon { background: var(--neon); color: #000; }
         .badge-danger { background: var(--danger); color: #fff; }
 
+        .pagination-btn {
+            background: rgba(255,255,255,0.02);
+            border: 1px solid #222;
+            color: #666;
+            padding: 4px 10px;
+            font-size: 0.55rem;
+            cursor: pointer;
+            transition: 0.2s;
+            letter-spacing: 1px;
+        }
+        .pagination-btn:hover:not(:disabled) {
+            border-color: var(--neon);
+            color: var(--neon);
+            background: rgba(0,255,136,0.05);
+        }
+        .pagination-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+            background: transparent;
+        }
+
         /* Deep Intel Loading Bar */
         .intel-loading-wrap {
             text-align: center;
@@ -529,7 +550,7 @@
                     </div>
                 </div>
                 <div class="intel-card">
-                    <p style="color: #666; font-size: 0.8rem;">Terminal Version: 3.8.5-OPERATIONAL</p>
+                    <p style="color: #666; font-size: 0.8rem;">Terminal Version: 3.9.7-OPERATIONAL</p>
                     <p style="color: #666; font-size: 0.8rem;">Uplink Status: <span style="color: var(--neon)">ENCRYPTED</span></p>
                     <p style="color: #666; font-size: 0.8rem;">Assigned Scope: <span id="current-scope-display" style="color: #fff; font-weight: bold;">-</span></p>
                 </div>
@@ -1088,19 +1109,19 @@
             }
         }
 
-        async function openDeepIntel(username) {
+        async function openDeepIntel(username, forceRefresh = false) {
             const modal = document.getElementById('intel-modal');
             const content = document.getElementById('intel-modal-content');
             
             modal.style.display = 'flex';
             content.innerHTML = `
                 <div class="intel-loading-wrap" style="margin: 100px auto;">
-                    <div style="color:var(--neon); font-size:0.8rem; letter-spacing:3px; margin-bottom:10px;">INITIALIZING DEEP RECON</div>
+                    <div style="color:var(--neon); font-size:0.8rem; letter-spacing:3px; margin-bottom:10px;">${forceRefresh ? 'REFRESHING PERSONNEL DATA' : 'INITIALIZING DEEP RECON'}</div>
                     <div class="intel-progress-container">
                         <div id="intel-bar" class="intel-progress-bar"></div>
                     </div>
-                    <div id="intel-status" style="color:#555; font-size:0.6rem; letter-spacing:1px; margin-top:10px;">BYPASSING ROBLOX SUPPRESSION LAYER...</div>
-                    <div class="intel-status-sub">[MANDATORY 10s RATE-LIMIT COOL-DOWN IN EFFECT]</div>
+                    <div id="intel-status" style="color:#555; font-size:0.6rem; letter-spacing:1px; margin-top:10px;">${forceRefresh ? 'BYPASSING CACHE LAYER...' : 'ROTUNNEL HANDSHAKE...'}</div>
+                    <div class="intel-status-sub">[UPLINK ACCELERATED VIA ROTUNNEL PROTOCOL]</div>
                 </div>
             `;
 
@@ -1109,15 +1130,15 @@
             
             let progress = 0;
             const statusMessages = [
-                "ESTABLISHING SECURE HANDSHAKE...",
-                "SUPPRESSING RATE-LIMIT TRIGGERS...",
+                "ESTABLISHING ROTUNNEL UPLINK...",
+                "BYPASSING RATE-LIMIT FILTERS...",
                 "INJECTING METADATA PROBES...",
                 "EXTRACTING AVATAR OUTFIT HASHES...",
                 "VALIDATING COMMUNITY INDEX FLAGS..."
             ];
 
             const interval = setInterval(() => {
-                progress += 1;
+                progress += 2; // Accelerated
                 if (bar) bar.style.width = progress + '%';
                 
                 if (progress % 20 === 0) {
@@ -1125,11 +1146,11 @@
                 }
 
                 if (progress >= 98) clearInterval(interval);
-            }, 110); // Slightly more than 10s to ensure server is ready
+            }, 50); // Faster updates for proxy test
 
             try {
-                // Force fresh fetch for every request
-                const res = await fetch(`${CONFIG.API_BASE}/deep-intel/${username}?t=${Date.now()}`, {
+                const refreshParam = forceRefresh ? '&refresh=true' : '';
+                const res = await fetch(`${CONFIG.API_BASE}/deep-intel/${username}?t=${Date.now()}${refreshParam}`, {
                     cache: 'no-cache',
                     headers: { 'Authorization': `Bearer ${localStorage.getItem('gsmc_jwt')}` }
                 });
@@ -1140,6 +1161,7 @@
                 
                 if (!res.ok) throw new Error(data.message);
 
+                window.currentIntelOutfits = data.outfits || [];
                 const joinDate = data.created ? new Date(data.created).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : "UNKNOWN";
 
                 content.innerHTML = `
@@ -1166,6 +1188,10 @@
                             <div style="background: rgba(0,255,136,0.05); border: 1px solid #222; padding: 15px; font-size: 0.65rem;">
                                 <span style="color:var(--neon); display:block; margin-bottom:5px; font-weight:900;">PERSONNEL BIO:</span>
                                 <p style="color:#888; line-height:1.4; margin:0;">${data.description ? data.description.substring(0, 200) + (data.description.length > 200 ? '...' : '') : 'REDACTED'}</p>
+                            </div>
+                            <div style="margin-top:20px; font-size:0.5rem; color:#444; border-top:1px solid #111; padding-top:10px;">
+                                LAST UPLINK: ${new Date(data.lastScanned).toLocaleString()}
+                                <p style="margin-top:5px; color:#666;">Data is cached. Use refresh for live sync.</p>
                             </div>
                         </div>
 
@@ -1233,18 +1259,13 @@
                             <div class="intel-section">
                                 <h5 style="display:flex; justify-content:space-between; align-items:center;">
                                     <span><i data-lucide="shirt"></i> PERSONNEL OUTFITS [${data.outfits.length}]</span>
-                                    <button onclick="openDeepIntel('${data.username}')" style="background:rgba(0,255,136,0.1); border:1px solid var(--neon); color:var(--neon); padding:2px 8px; font-size:0.55rem; cursor:pointer; letter-spacing:1px;">FORCE RE-SCAN</button>
+                                    <div style="display:flex; gap:5px;">
+                                        <div id="outfit-pagination" style="display:flex; align-items:center; gap:5px;"></div>
+                                        <button onclick="openDeepIntel('${data.username}', true)" style="background:rgba(0,255,136,0.1); border:1px solid var(--neon); color:var(--neon); padding:2px 8px; font-size:0.55rem; cursor:pointer; letter-spacing:1px; margin-left:10px;">FORCE SYNC</button>
+                                    </div>
                                 </h5>
-                                <div class="outfit-grid">
-                                    ${data.outfits.length > 0 ? 
-                                        data.outfits.map(o => `
-                                            <div class="outfit-card">
-                                                <img src="${o.thumbnail}" class="outfit-img" loading="lazy">
-                                                <span class="outfit-name" title="${o.name}">${o.name || "UNNAMED"}</span>
-                                            </div>
-                                        `).join('') : 
-                                        '<div style="grid-column: 1/-1; padding:20px; background:#080808; border:1px dashed #222; text-align:center; color:#444; font-size:0.65rem;">NO CUSTOM OUTFITS DETECTED (OR INVENTORY PRIVATE)</div>'
-                                    }
+                                <div id="outfit-paged-grid" class="outfit-grid">
+                                    <!-- Paged outfits here -->
                                 </div>
                             </div>
 
@@ -1262,9 +1283,40 @@
                         </div>
                     </div>
                 `;
+                renderOutfitsPage(1);
                 refreshIcons();
             } catch (err) {
                 content.innerHTML = `<div style="color:var(--danger); text-align:center; padding:50px;">UPLINK FAILED: ${err.message}</div>`;
+            }
+        }
+
+        window.renderOutfitsPage = (page) => {
+            const outfits = window.currentIntelOutfits || [];
+            const perPage = 15;
+            const totalPages = Math.ceil(outfits.length / perPage);
+            const start = (page - 1) * perPage;
+            const end = start + perPage;
+            const pagedOutfits = outfits.slice(start, end);
+            
+            const grid = document.getElementById('outfit-paged-grid');
+            if (!grid) return;
+            
+            grid.innerHTML = pagedOutfits.length > 0 ? 
+                pagedOutfits.map(o => `
+                    <div class="outfit-card">
+                        <img src="${o.thumbnail}" class="outfit-img" loading="lazy">
+                        <span class="outfit-name" title="${o.name}">${o.name || "UNNAMED"}</span>
+                    </div>
+                `).join('') : 
+                '<div style="grid-column: 1/-1; padding:20px; background:#080808; border:1px dashed #222; text-align:center; color:#444; font-size:0.65rem;">NO CUSTOM OUTFITS DETECTED</div>';
+            
+            const pagination = document.getElementById('outfit-pagination');
+            if (pagination) {
+                pagination.innerHTML = `
+                    <button class="pagination-btn" onclick="renderOutfitsPage(${page - 1})" ${page <= 1 ? 'disabled' : ''}>PREV</button>
+                    <span style="font-size:0.5rem; color:#444; min-width:60px; text-align:center;">${page} / ${totalPages || 1}</span>
+                    <button class="pagination-btn" onclick="renderOutfitsPage(${page + 1})" ${page >= totalPages ? 'disabled' : ''}>NEXT</button>
+                `;
             }
         }
 

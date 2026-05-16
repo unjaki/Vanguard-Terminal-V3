@@ -1,5 +1,83 @@
 [
   {
+    "version": "3.9.7",
+    "date": "2026-05-16",
+    "notes": [
+      "Documentation Layer: Initialized README.MD with comprehensive system specifications and operational manuals.",
+      "Repository Optimization: Standardized architectural overview for deployment readiness."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "3.9.6",
+    "date": "2026-05-16",
+    "notes": [
+      "Environment Diagnostics: Validated Node.js deprecation warnings as non-critical library churn.",
+      "Stability Check: Verified runtime integrity unaffected by punycode or domexception deprecations."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "3.9.5",
+    "date": "2026-05-16",
+    "notes": [
+      "Transmission Stability Patch: Increased global uplink timeouts to 15s for high-latency RoTunnel sessions.",
+      "Queue Recalibration: Optimized request throughput with serial-batching to mitigate 504 Gateway errors.",
+      "Reliability Restoration: Corrected 'Failed to fetch unit data' triggers during proxy congestion."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "3.9.4",
+    "date": "2026-05-15",
+    "notes": [
+      "Network Protocol Restoration: Re-engaged RoTunnel proxy protocol for absolute rate-limit suppression.",
+      "Uplink Synchronization: Calibrated terminal handshake sequences for current protocol compliance.",
+      "Performance Tuning: Optimized transmission queue for multi-path RoTunnel routing."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "3.9.3",
+    "date": "2026-05-15",
+    "notes": [
+      "Stability Hotfix: Reverted to RoProxy protocol due to 401 Unauthorized errors detected with RoTunnel on public endpoints.",
+      "Intelligence Auditing: Re-enabled granular URL tracking for recon diagnostics.",
+      "UI Synchronization: Updated uplink handshake status for current protocol compliance."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "3.9.2",
+    "date": "2026-05-15",
+    "notes": [
+      "Intelligence Payload Expansion: Increased outfit recon capacity to 500+ records per personnel file.",
+      "Buffer Optimization: Enhanced thumbnail batch processing for high-volume outfit matrices."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "3.9.1",
+    "date": "2026-05-15",
+    "notes": [
+      "RoTunnel Integration: Migrated Roblox API uplink to RoTunnel proxy protocol for enhanced rate-limit bypass.",
+      "Latency Reduction: Removed 10s cooldown from Deep Recon sessions to accelerate tactical scanning.",
+      "Transmission Optimization: Re-tuned Roblox Request Queue for higher throughput and lower batch latency."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "3.9.0",
+    "date": "2026-05-11",
+    "notes": [
+      "Personnel Intelligence Database: Implemented IntelCache architecture for persistent storage of scouted data.",
+      "Recon Efficiency: Deep intel reports now serve from local cache by default, reducing Roblox API dependency.",
+      "Outfit Matrix Expansion: Integrated paginated outfit galleries supporting high-volume personnel records (150+ outfits).",
+      "Force Sync Protocol: Added mandatory refresh capability for real-time tactical updates."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
     "version": "3.8.5",
     "date": "2026-05-11",
     "notes": [
