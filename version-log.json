@@ -1,5 +1,15 @@
 [
   {
+    "version": "3.9.8",
+    "date": "2026-05-16",
+    "notes": [
+      "Multi-Path Synchronization: Integrated Socket.io for real-time collaboration across concurrent account sessions.",
+      "Live Tactical Feed: Added toast notification protocol for cross-session audit log visualization.",
+      "Uplink Stability: Transitioned to http.Server to support persistent websocket handshakes."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
     "version": "3.9.7",
     "date": "2026-05-16",
     "notes": [

@@ -5,8 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GSMC | Personnel Command</title>
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="/socket.io/socket.io.js"></script>
     <style>
-        :root { --neon: #00ff88; --bg: #0b0b0b; --card: #161616; --danger: #ff4444; --border: #333; }
+        :root { --neon: #00ff88; --bg: #0b0b0b; --card: #161616; --danger: #ff4444; --border: #333; --warning: #ffcc00; }
         body { background: var(--bg); color: #fff; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; overflow: hidden; }
         
         /* Tactical Scanline Overlay */
@@ -59,6 +60,7 @@
         .tab-content.active { display: block; animation: fadeIn 0.4s ease-out; }
 
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeOut { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-10px); } }
 
         /* Personnel Table */
         table { width: 100%; border-collapse: separate; border-spacing: 0 4px; margin-top: 20px; }
@@ -249,6 +251,9 @@
             </div>
         </div>
     </div>
+
+    <!-- Real-time Toast Container -->
+    <div id="toast-container" style="position: fixed; bottom: 20px; right: 20px; z-index: 5000; display: flex; flex-direction: column; gap: 10px; max-width: 400px;"></div>
 
     <div id="login-view" class="container">
         <h1><i data-lucide="shield-check"></i> VANGUARD TERMINAL</h1>
@@ -550,7 +555,7 @@
                     </div>
                 </div>
                 <div class="intel-card">
-                    <p style="color: #666; font-size: 0.8rem;">Terminal Version: 3.9.7-OPERATIONAL</p>
+                    <p style="color: #666; font-size: 0.8rem;">Terminal Version: 3.9.8-OPERATIONAL</p>
                     <p style="color: #666; font-size: 0.8rem;">Uplink Status: <span style="color: var(--neon)">ENCRYPTED</span></p>
                     <p style="color: #666; font-size: 0.8rem;">Assigned Scope: <span id="current-scope-display" style="color: #fff; font-weight: bold;">-</span></p>
                 </div>
@@ -626,9 +631,55 @@
         };
 
         let userTier = 0;
+        let socket;
+
+        function initSocket() {
+            if (socket) return;
+            socket = io();
+
+            socket.on('vanguard_event', (event) => {
+                const { type, data, timestamp } = event;
+                
+                if (type === 'AUDIT_LOG') {
+                    showToast(`[${data.action}] ${data.operative}: ${data.details.replace(/\*\*/g, '')}`, data.color);
+                } else if (type === 'SESSION_ESTABLISHED') {
+                    showToast(`NEW OPERATIVE SECURED: ${data.username} (Tier ${data.tier})`, '#00ff88');
+                }
+            });
+
+            socket.on('connect', () => {
+                console.log('[SOCKET] Tactical Link Established');
+            });
+        }
+
+        function showToast(message, color) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.style.background = 'rgba(0,0,0,0.9)';
+            toast.style.borderLeft = `3px solid ${color || 'var(--neon)'}`;
+            toast.style.padding = '12px 20px';
+            toast.style.color = '#fff';
+            toast.style.fontSize = '0.7rem';
+            toast.style.fontFamily = 'monospace';
+            toast.style.boxShadow = '0 5px 15px rgba(0,0,0,0.5)';
+            toast.style.animation = 'fadeIn 0.3s ease-out';
+            toast.style.display = 'flex';
+            toast.style.alignItems = 'center';
+            toast.style.gap = '10px';
+            toast.innerHTML = `<i data-lucide="zap" style="width:14px; color:${color || 'var(--neon)'}"></i> ${message}`;
+            
+            container.appendChild(toast);
+            refreshIcons();
+
+            setTimeout(() => {
+                toast.style.animation = 'fadeOut 0.5s ease-in forwards';
+                setTimeout(() => toast.remove(), 500);
+            }, 5000);
+        }
 
         function initializeVanguard(scope, tier) {
             userTier = tier || 0;
+            initSocket();
             document.getElementById('login-view').classList.add('hidden');
             document.getElementById('dashboard-view').style.display = 'flex';
             

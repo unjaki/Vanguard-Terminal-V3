@@ -11,6 +11,7 @@ const axios = require('axios');
 const http = require('http');
 const https = require('https');
 const cors = require('cors');
+const { Server } = require('socket.io');
 const fs = require('fs').promises;
 const { google } = require('googleapis');
 
@@ -25,6 +26,18 @@ const rbApi = (subdomain, endpoint) => {
 };
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+    }
+});
+
+// Real-time Event Broadcaster
+const broadcastSecurityEvent = (type, data) => {
+    io.emit('vanguard_event', { type, data, timestamp: new Date() });
+};
 
 // 2. Middleware & Cache Setup
 axios.defaults.headers.common['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
@@ -195,6 +208,15 @@ const logAction = async (user, action, details, color = 3447003) => {
                 footer: { text: "GSMC Operational Intelligence | Audit Protocol" }
             }]
         });
+
+        // Broadcast to all connected terminals
+        broadcastSecurityEvent('AUDIT_LOG', {
+            operative,
+            scope,
+            action,
+            details,
+            color
+        });
     } catch (err) {
         console.error("Audit Log Failed:", err.message);
     }
@@ -355,6 +377,12 @@ app.post('/login', async (req, res) => {
                 }]
             });
         } catch (webhookErr) { console.error("Webhook Failed"); }
+
+        broadcastSecurityEvent('SESSION_ESTABLISHED', {
+            username: userData.username,
+            tier: userData.tier,
+            scope: userData.unitScope
+        });
 
         res.json({ 
             message: `Welcome back, ${username}`, 
@@ -1111,7 +1139,7 @@ app.get('/system/version-log', async (req, res) => {
 const PORT = process.env.PORT || 3000;
 
 if (require.main === module) {
-    app.listen(PORT, '0.0.0.0', () => {
+    server.listen(PORT, '0.0.0.0', () => {
         console.log(`GSMC Terminal active on port ${PORT}`);
     });
 }
