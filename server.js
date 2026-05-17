@@ -677,7 +677,7 @@ try {
         }
 
         // 4. Final Response
-        res.json({
+        const payload = {
             officer: robloxUsername,
             robloxId: rbId,
             discordId: discordInfo, 
@@ -688,7 +688,10 @@ try {
             status: officerStatus,
             nsStatus: nsStatus,
             subDivisions: subDivisions
-        });
+        };
+
+        broadcastSecurityEvent('SCAN_RESULT', payload);
+        res.json(payload);
 
     } catch (err) {
         console.error("Route Error:", err.message);

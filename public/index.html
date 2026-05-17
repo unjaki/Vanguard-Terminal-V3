@@ -555,8 +555,8 @@
                     </div>
                 </div>
                 <div class="intel-card">
-                    <p style="color: #666; font-size: 0.8rem;">Terminal Version: 3.9.8-OPERATIONAL</p>
-                    <p style="color: #666; font-size: 0.8rem;">Uplink Status: <span style="color: var(--neon)">ENCRYPTED</span></p>
+                    <p style="color: #666; font-size: 0.8rem;">Terminal Version: 4.0.0-OPERATIONAL</p>
+                    <p style="color: #666; font-size: 0.8rem;">Uplink Status: <span id="uplink-indicator" style="color: var(--neon)">ENCRYPTED</span></p>
                     <p style="color: #666; font-size: 0.8rem;">Assigned Scope: <span id="current-scope-display" style="color: #fff; font-weight: bold;">-</span></p>
                 </div>
             </div>
@@ -635,21 +635,44 @@
 
         function initSocket() {
             if (socket) return;
-            socket = io();
+            try {
+                socket = io();
 
-            socket.on('vanguard_event', (event) => {
-                const { type, data, timestamp } = event;
+                socket.on('vanguard_event', (event) => {
+                    const { type, data, timestamp } = event;
+                    
+                    if (type === 'AUDIT_LOG') {
+                        showToast(`[${data.action}] ${data.operative}: ${data.details.replace(/\*\*/g, '')}`, data.color);
+                        if (type === 'PERSONNEL_SCAN' && data.details.includes('Subject:')) {
+                            // If we're on the dashboard, maybe we want to see this?
+                        }
+                    } else if (type === 'SESSION_ESTABLISHED') {
+                        showToast(`NEW OPERATIVE SECURED: ${data.username} (Tier ${data.tier})`, '#00ff88');
+                    } else if (type === 'SCAN_RESULT' && userTier > 0) {
+                        // Live feed of scans if logged in
+                        showToast(`REMOTE SCAN COMPLETE: ${data.officer}`, '#00aaff');
+                    }
+                });
+
+                socket.on('connect', () => {
+                    console.log('[SOCKET] Tactical Link Established');
+                    const indicator = document.getElementById('uplink-indicator');
+                    if (indicator) {
+                        indicator.style.color = 'var(--neon)';
+                        indicator.innerText = 'ENCRYPTED';
+                    }
+                });
                 
-                if (type === 'AUDIT_LOG') {
-                    showToast(`[${data.action}] ${data.operative}: ${data.details.replace(/\*\*/g, '')}`, data.color);
-                } else if (type === 'SESSION_ESTABLISHED') {
-                    showToast(`NEW OPERATIVE SECURED: ${data.username} (Tier ${data.tier})`, '#00ff88');
-                }
-            });
-
-            socket.on('connect', () => {
-                console.log('[SOCKET] Tactical Link Established');
-            });
+                socket.on('disconnect', () => {
+                    const indicator = document.getElementById('uplink-indicator');
+                    if (indicator) {
+                        indicator.style.color = 'var(--danger)';
+                        indicator.innerText = 'DISCONNECTED';
+                    }
+                });
+            } catch (e) {
+                console.error("Socket Init Failed:", e);
+            }
         }
 
         function showToast(message, color) {
@@ -679,7 +702,7 @@
 
         function initializeVanguard(scope, tier) {
             userTier = tier || 0;
-            initSocket();
+            // initSocket is now called on page load
             document.getElementById('login-view').classList.add('hidden');
             document.getElementById('dashboard-view').style.display = 'flex';
             
@@ -1420,6 +1443,7 @@
 
         // Auto-login check
         window.addEventListener('load', async () => {
+            initSocket(); // Critical: Load socket immediately for login awareness
             const token = localStorage.getItem('gsmc_jwt');
             if (token) {
                 try {

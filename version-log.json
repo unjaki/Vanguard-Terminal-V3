@@ -1,5 +1,26 @@
 [
   {
+    "version": "4.0.0",
+    "date": "2026-05-16",
+    "notes": [
+      "Collaborative Architecture: Uplinked sockets on page load for cross-session login discovery.",
+      "Live Intelligence Feed: Added SCAN_RESULT broadcasting for real-time personnel tracking across terminals.",
+      "Status Reliability: Implemented persistent socket state indicators (ENCRYPTED/DISCONNECTED) for all operatives.",
+      "Multi-User Synchronization: Calibrated session logic for simultaneous multi-device account usage."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "3.9.9",
+    "date": "2026-05-16",
+    "notes": [
+      "Database Diagnostics: Identified firewall/whitelist restrictions on MongoDB Atlas cluster.",
+      "Transmission Manual: User prompted to whitelist 0.0.0.0/0 for cloud uplink persistence.",
+      "Operational Readiness: System stabilized for deferred database synchronization."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
     "version": "3.9.8",
     "date": "2026-05-16",
     "notes": [
