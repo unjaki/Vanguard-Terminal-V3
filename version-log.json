@@ -1,5 +1,67 @@
 [
   {
+    "version": "4.2.0",
+    "date": "2026-05-20",
+    "notes": [
+      "Tactical Toolkit Deployment: Integrated a multidimensional drop-down console housing advanced forensic utilities.",
+      "Media Uplink Exporter: Engineered video and audio converter powered by parallel Cobalt API fallbacks.",
+      "Image Background Extractor: Built an interactive, client-side Canvas-based segmentation model with Chroma Keying, Magic Wand flood extraction, and custom brush manual erasive restoration.",
+      "Tactical Arcade System: Replaced intrusive OSINT tracking with a retro cyber arcade, including a matrix-based Breach Protocol hacking decryption grid and keyboard/mouse/touch interactive Packet Interceptor firewall simulator.",
+      "Cipher Machine: Built an end-to-end cryptographic encoder/decoder supporting Base64 formats, Caesar Shifts, Rot13, Standard Binary grids, and a live LED blinker Morse beacon."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "4.1.4",
+    "date": "2026-05-17",
+    "notes": [
+      "Visual Recon Clarity: Enhanced visibility of personnel outfit identifiers with high-contrast typography.",
+      "Transmission Calibration: Unified gallery font rendering for superior tactical legibility.",
+      "Interface Polish: Optimized metadata spacing for reconnaissance card matrices."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "4.1.3",
+    "date": "2026-05-17",
+    "notes": [
+      "In-App Technical Inspection: Migrated outfit asset manifests to a native modal interface for seamless recon.",
+      "Infrastructure Optimization: Decommissioned external viewer tabs in favor of unified terminal environment.",
+      "UI Refinement: Calibrated inspection grids for cross-device stability."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "4.1.2",
+    "date": "2026-05-17",
+    "notes": [
+      "Technical Inspection Protocol: Implemented /api/outfit-details endpoint for deep asset manifest extraction.",
+      "Uplink Visualization: Created standalone tactical viewer for detailed component analysis in isolated tabs.",
+      "Interaction Upgrade: Enabled interactive triggers on all outfit reconnaissance cards."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "4.1.1",
+    "date": "2026-05-17",
+    "notes": [
+      "Visual Synchronization: Normalized outfit gallery dimensions with unified card heights and robust image scaling.",
+      "Transmission Manual: Optimized grid responsiveness for multi-page reconnaissance sessions.",
+      "Architecture Polish: Refined UI consistency in both tactical batch and deep-intel views."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
+    "version": "4.1.0",
+    "date": "2026-05-17",
+    "notes": [
+      "Intelligence Shield: Implemented autonomous proxy rotation (RoTunnel -> RoProxy -> RProxy) for 401/5xx recovery.",
+      "Transmission Resilience: Added recursive retry-with-swap logic to the Roblox Request Queue.",
+      "Uplink Diagnostic: Enhanced 401 monitoring in the badge walker for deep-recon sessions."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
     "version": "4.0.0",
     "date": "2026-05-16",
     "notes": [

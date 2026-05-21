@@ -88,6 +88,8 @@ class RobloxRequestQueue {
         if (this.processing || this.queue.length === 0) return;
         this.processing = true;
 
+        const PROXY_ROTATION = ['rotunnel.com', 'roproxy.com', 'rproxy.xyz'];
+
         while (this.queue.length > 0) {
             const batch = this.queue.splice(0, this.batchSize);
             console.log(`[QUEUE] Processing batch of ${batch.length}. Remaining in queue: ${this.queue.length}`);
@@ -103,10 +105,22 @@ class RobloxRequestQueue {
                     item.resolve(response);
                 } catch (error) {
                     const status = error.response?.status;
-                    const isRetryable = status === 429 || (status >= 500 && status <= 504);
+                    const isRetryable = status === 401 || status === 429 || (status >= 500 && status <= 504);
                     
                     if (isRetryable && item.attempt < item.retries) {
                         item.attempt++;
+                        
+                        // Proxy Rotation on 401 or certain 5xx errors
+                        if (status === 401 || status === 502 || status === 503) {
+                            for (let i = 0; i < PROXY_ROTATION.length - 1; i++) {
+                                if (item.url.includes(PROXY_ROTATION[i])) {
+                                    item.url = item.url.replace(PROXY_ROTATION[i], PROXY_ROTATION[i+1]);
+                                    console.warn(`[QUEUE] 🔄 Proxy Rotation for ${status}: Swapped to ${PROXY_ROTATION[i+1]} [Attempt ${item.attempt}]`);
+                                    break;
+                                }
+                            }
+                        }
+
                         const baseDelay = status === 429 ? 12000 : 3000;
                         const backoff = baseDelay * Math.pow(2, item.attempt - 1);
                         console.warn(`[QUEUE] HTTP ${status} detected for ${item.url}. Retrying in ${backoff}ms (Attempt ${item.attempt}/${item.retries})`);
@@ -117,7 +131,7 @@ class RobloxRequestQueue {
                         }, backoff);
                     } else {
                         if (status === 401) {
-                            console.error(`[QUEUE] ❌ 401 Unauthorized for ${item.url}. Check proxy or credentials. Headers:`, JSON.stringify(item.options?.headers || {}));
+                            console.error(`[QUEUE] ❌ Periodic 401 failure persisted for ${item.url}. Request rejected.`);
                         }
                         item.reject(error);
                     }
@@ -889,7 +903,8 @@ app.get('/deep-intel/:username', protectTier(2), async (req, res) => {
 app.get('/outfits/:username', protectTier(2), async (req, res) => {
     try {
         const username = req.params.username.trim();
-        console.log(`[RECON] Fetching outfits for: ${username}`);
+        const cursor = req.query.cursor || "";
+        console.log(`[RECON] Fetching outfits for: ${username} (Cursor: ${cursor || 'START'})`);
 
         // 1. Resolve Identity
         const resolveRes = await robloxQueue.enqueue(
@@ -902,15 +917,15 @@ app.get('/outfits/:username', protectTier(2), async (req, res) => {
         const user = resolveRes.data.data?.[0];
         if (!user) return res.status(404).json({ message: "Subject not found." });
 
-        // 2. Fetch Outfits
+        // 2. Fetch Outfits (Increased to 50 per page)
         const outfitRes = await robloxQueue.enqueue(
-            rbApi('avatar', `/v1/users/${user.id}/outfits?isEditable=true&itemsPerPage=15`),
+            rbApi('avatar', `/v1/users/${user.id}/outfits?isEditable=true&itemsPerPage=50&cursor=${cursor}`),
             { timeout: 10000 }
         );
 
         const rawOutfits = outfitRes.data?.data || [];
-        const filteredOutfits = rawOutfits.slice(0, 10);
-        const outfitIds = filteredOutfits.map(o => o.id).join(',');
+        const nextPageCursor = outfitRes.data?.nextPageCursor || null;
+        const outfitIds = rawOutfits.map(o => o.id).join(',');
 
         let outfits = [];
         if (outfitIds) {
@@ -919,7 +934,7 @@ app.get('/outfits/:username', protectTier(2), async (req, res) => {
                 { timeout: 15000 }
             );
 
-            outfits = filteredOutfits.map(o => {
+            outfits = rawOutfits.map(o => {
                 const thumb = outfitThumbRes.data?.data?.find(t => t.targetId === o.id);
                 let img = (thumb && thumb.state === 'Completed' && thumb.imageUrl) 
                     ? thumb.imageUrl 
@@ -932,7 +947,8 @@ app.get('/outfits/:username', protectTier(2), async (req, res) => {
             username: user.name,
             displayName: user.displayName,
             userId: user.id,
-            outfits: outfits
+            outfits: outfits,
+            nextPageCursor: nextPageCursor
         });
     } catch (err) {
         const status = err.response?.status || 500;
@@ -950,6 +966,60 @@ app.get('/outfits/:username', protectTier(2), async (req, res) => {
             details: details,
             error_code: status
         });
+    }
+});
+
+// --- OUTFIT ASSET INSPECTION (TECHNICAL RECON) ---
+app.get('/api/outfit-details/:outfitId', protectTier(2), async (req, res) => {
+    try {
+        const { outfitId } = req.params;
+        console.log(`[RECON] Technical Inspection initiated for Outfit: ${outfitId}`);
+
+        // 1. Fetch Outfit Configuration
+        const configRes = await robloxQueue.enqueue(
+            rbApi('avatar', `/v1/outfits/${outfitId}/details`),
+            { timeout: 10000 }
+        );
+
+        const data = configRes.data;
+        if (!data) return res.status(404).json({ message: "Outfit configuration redacted or lost." });
+
+        const assets = data.assets || [];
+        const assetIds = assets.map(a => a.id).join(',');
+
+        let resolvedAssets = [];
+        if (assetIds) {
+            // 2. Fetch Asset Thumbnails for visual identification
+            const thumbRes = await robloxQueue.enqueue(
+                rbApi('thumbnails', `/v1/assets?assetIds=${assetIds}&size=150x150&format=Png&isCircular=false`),
+                { timeout: 10000 }
+            );
+
+            resolvedAssets = assets.map(a => {
+                const thumb = thumbRes.data?.data?.find(t => t.targetId === a.id);
+                return {
+                    id: a.id,
+                    name: a.name || "UNNAMED COMPONENT",
+                    assetType: a.assetType ? a.assetType.name : "UNKNOWN",
+                    thumbnail: (thumb && thumb.state === 'Completed') ? thumb.imageUrl : "https://tr.rbxcdn.com/38c6edcf096a30366bc90e9d68a2d1d4/150/150/Avatar/Png"
+                };
+            });
+        }
+
+        // 3. Final Manifest
+        res.json({
+            outfitId,
+            name: data.name || "CLASS-X UNKNOWN",
+            assets: resolvedAssets,
+            lastInspection: new Date()
+        });
+
+        // Audit Log
+        logAction(req.user, "OUTFT_INSPECTION", `**Outfit:** ${data.name || outfitId}\n**Asset Count:** ${resolvedAssets.length}`);
+
+    } catch (err) {
+        console.error(`[RECON] Technical failure on Outfit ${req.params.outfitId}:`, err.message);
+        res.status(err.response?.status || 500).json({ message: "Technical Uplink Failed", error: err.message });
     }
 });
 
@@ -1120,6 +1190,67 @@ app.delete('/admin/users/:id', protectTier(3), async (req, res) => {
     }
 });
 
+// --- TOOLKIT MEDIA DOWNLOADER ---
+app.post('/api/toolkit/yt-download', protectTier(2), async (req, res) => {
+    const { url, type, resolution } = req.body;
+    if (!url) {
+        return res.status(400).json({ success: false, message: "Media URL is required." });
+    }
+
+    console.log(`[TOOLKIT] Media download request received for: ${url} (Type: ${type}, Resolution: ${resolution})`);
+
+    const COBALT_SERVERS = [
+        'https://api.cobalt.tools/api/json',
+        'https://cobalt.api.ryg.me/api/json'
+    ];
+
+    let lastError = null;
+
+    for (const serverUrl of COBALT_SERVERS) {
+        try {
+            console.log(`[TOOLKIT] Attempting conversion on Cobalt server: ${serverUrl}`);
+            const payload = {
+                url: url,
+                videoQuality: resolution || "720",
+                isAudioOnly: type === "mp3"
+            };
+
+            const response = await axios.post(serverUrl, payload, {
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) VanguardTerminal/4.2.0'
+                },
+                timeout: 15000
+            });
+
+            if (response.data && (response.data.url || response.data.picker || response.data.status === 'stream')) {
+                console.log(`[TOOLKIT] Tactical Uplink Succeeded on ${serverUrl}`);
+                logAction(req.user, "MEDIA_EXPORT", `**URL:** ${url}\n**Type:** ${type.toUpperCase()}\n**Qual:** ${resolution || 'N/A'}`);
+                return res.json({
+                    success: true,
+                    data: response.data
+                });
+            } else if (response.data && response.data.text) {
+                console.warn(`[TOOLKIT] Server returned error status: ${response.data.text}`);
+                lastError = response.data.text;
+            } else {
+                console.warn(`[TOOLKIT] Unexpected payload structure:`, response.data);
+                lastError = "Invalid response schema.";
+            }
+        } catch (err) {
+            console.warn(`[TOOLKIT] Server ${serverUrl} failed:`, err.message);
+            lastError = err.response?.data?.text || err.message;
+        }
+    }
+
+    // Attempted all servers, none succeeded
+    res.status(502).json({
+        success: false,
+        message: `Tactical conversion rejected on all servers. Detail: ${lastError || "Unknown connection error"}`
+    });
+});
+
 // --- SYSTEM LOGS ---
 app.get('/health', (req, res) => {
     res.json({
@@ -1137,6 +1268,11 @@ app.get('/system/version-log', async (req, res) => {
     } catch (err) {
         res.json([{ version: "V.1", date: "Unknown", notes: ["System Active"] }]);
     }
+});
+
+// --- DOOM SIMULATION ENVIRONMENT UPLINK ---
+app.get('/cdn.dos.zone_custom_dos_doom.jsdos', (req, res) => {
+    res.sendFile(path.join(__dirname, 'cdn.dos.zone_custom_dos_doom.jsdos'));
 });
 
 const PORT = process.env.PORT || 3000;
