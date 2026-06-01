@@ -14,11 +14,14 @@ const cors = require('cors');
 const { Server } = require('socket.io');
 const fs = require('fs').promises;
 const { google } = require('googleapis');
+const youtubedl = require('youtube-dl-exec');
 
 // 1. Models
 const User = require(path.join(__dirname, 'models', 'User.js')); 
 const Division = require(path.join(__dirname, 'models', 'divisions.js'));
 const IntelCache = require(path.join(__dirname, 'models', 'IntelCache.js'));
+
+const ROBLOX_FALLBACK_IMAGE = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNTAiIGhlaWdodD0iMTUwIiB2aWV3Qm94PSIwIDAgMjQgMjQiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzU1NTU1NSIgc3Ryb2tlLXdpZHRoPSIxLjUiPjxyZWN0IHdpZHRoPSIyNCIgaGVpZHRoPSIyNCIgcng9IjIiIGZpbGw9IiMwZDBkMGQiLz48cGF0aCBkPSJNMTggMjFhNiA2IDAgMCAwLTEyIDAiLz48Y2lyY2xlIGN4PSIxMiIgY3k9IjEwIiByPSI0Ii8+PC9zdmc+";
 
 const rbApi = (subdomain, endpoint) => {
     // Using rotunnel.com as per commander directive for enhanced rate-limit bypass
@@ -408,6 +411,29 @@ app.post('/login', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+
+// Safe, Explicit Roblox API Proxy Route to Cloudflare Worker
+app.get('/api/proxy/roblox', async (req, res) => {
+    try {
+        const targetUrl = `https://api.vanguard-terminal.me/roblox/${req.query.subdomain}/${req.query.endpoint}`;
+
+        const response = await fetch(targetUrl, {
+            method: 'GET',
+            headers: {
+                'X-Proxy-Secret': 'V3R1745_357_Qu0d_53RV47uR!',
+                'Accept': 'application/json'
+            }
+        });
+
+        const data = await response.json();
+        return res.status(response.status).json(data);
+    } catch (err) {
+        console.error(`[Roblox Worker Proxy Error]:`, err);
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+
 
 app.get('/group-info/:groupId', protectTier(2), async (req, res) => {
     const { groupId } = req.params;
@@ -845,15 +871,15 @@ app.get('/deep-intel/:username', protectTier(2), async (req, res) => {
             try {
                 const thumbRes = await robloxQueue.enqueue(rbApi('thumbnails', `/v1/users/outfits?userOutfitIds=${ids}&size=150x150&format=Png&isCircular=false`), { timeout: 15000 });
                 chunk.forEach(o => {
-                    const thumb = thumbRes.data?.data?.find(t => t.targetId === o.id);
+                    const thumb = thumbRes.data?.data?.find(t => String(t.targetId) === String(o.id));
                     outfits.push({
                         id: o.id,
                         name: o.name || "UNNAMED OUTFIT",
-                        thumbnail: (thumb && thumb.state === 'Completed') ? thumb.imageUrl : "https://tr.rbxcdn.com/38c6edcf096a30366bc90e9d68a2d1d4/150/150/Avatar/Png"
+                        thumbnail: (thumb && thumb.imageUrl) ? thumb.imageUrl : ROBLOX_FALLBACK_IMAGE
                     });
                 });
             } catch(e) {
-                 chunk.forEach(o => outfits.push({ id: o.id, name: o.name || "UNNAMED OUTFIT", thumbnail: "https://tr.rbxcdn.com/38c6edcf096a30366bc90e9d68a2d1d4/150/150/Avatar/Png" }));
+                 chunk.forEach(o => outfits.push({ id: o.id, name: o.name || "UNNAMED OUTFIT", thumbnail: ROBLOX_FALLBACK_IMAGE }));
             }
         }
 
@@ -935,10 +961,10 @@ app.get('/outfits/:username', protectTier(2), async (req, res) => {
             );
 
             outfits = rawOutfits.map(o => {
-                const thumb = outfitThumbRes.data?.data?.find(t => t.targetId === o.id);
-                let img = (thumb && thumb.state === 'Completed' && thumb.imageUrl) 
+                const thumb = outfitThumbRes.data?.data?.find(t => String(t.targetId) === String(o.id));
+                let img = (thumb && thumb.imageUrl) 
                     ? thumb.imageUrl 
-                    : "https://tr.rbxcdn.com/38c6edcf096a30366bc90e9d68a2d1d4/150/150/Avatar/Png";
+                    : ROBLOX_FALLBACK_IMAGE;
                 return { id: o.id, name: o.name || "UNNAMED OUTFIT", thumbnail: img };
             });
         }
@@ -996,12 +1022,12 @@ app.get('/api/outfit-details/:outfitId', protectTier(2), async (req, res) => {
             );
 
             resolvedAssets = assets.map(a => {
-                const thumb = thumbRes.data?.data?.find(t => t.targetId === a.id);
+                const thumb = thumbRes.data?.data?.find(t => String(t.targetId) === String(a.id));
                 return {
                     id: a.id,
                     name: a.name || "UNNAMED COMPONENT",
                     assetType: a.assetType ? a.assetType.name : "UNKNOWN",
-                    thumbnail: (thumb && thumb.state === 'Completed') ? thumb.imageUrl : "https://tr.rbxcdn.com/38c6edcf096a30366bc90e9d68a2d1d4/150/150/Avatar/Png"
+                    thumbnail: (thumb && thumb.imageUrl) ? thumb.imageUrl : ROBLOX_FALLBACK_IMAGE
                 };
             });
         }
@@ -1192,63 +1218,75 @@ app.delete('/admin/users/:id', protectTier(3), async (req, res) => {
 
 // --- TOOLKIT MEDIA DOWNLOADER ---
 app.post('/api/toolkit/yt-download', protectTier(2), async (req, res) => {
-    const { url, type, resolution } = req.body;
+    const { url, isAudioOnly, browser } = req.body;
     if (!url) {
         return res.status(400).json({ success: false, message: "Media URL is required." });
     }
 
-    console.log(`[TOOLKIT] Media download request received for: ${url} (Type: ${type}, Resolution: ${resolution})`);
+    try {
+        console.log(`[TOOLKIT] Initiating local yt-dlp extraction for URL: ${url} (isAudioOnly: ${isAudioOnly})`);
+        
+        const fsSync = require('fs');
+        const hasCookiesFile = fsSync.existsSync(path.join(__dirname, 'cookies.txt')) || fsSync.existsSync('./cookies.txt');
 
-    const COBALT_SERVERS = [
-        'https://api.cobalt.tools/api/json',
-        'https://cobalt.api.ryg.me/api/json'
-    ];
+        const options = {
+            dumpSingleJson: true,
+            noWarnings: true,
+            preferFreeFormats: true,
+            format: isAudioOnly ? 'bestaudio[ext=m4a]/bestaudio/best' : 'bv*+ba/b'
+        };
 
-    let lastError = null;
-
-    for (const serverUrl of COBALT_SERVERS) {
-        try {
-            console.log(`[TOOLKIT] Attempting conversion on Cobalt server: ${serverUrl}`);
-            const payload = {
-                url: url,
-                videoQuality: resolution || "720",
-                isAudioOnly: type === "mp3"
-            };
-
-            const response = await axios.post(serverUrl, payload, {
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) VanguardTerminal/4.2.0'
-                },
-                timeout: 15000
-            });
-
-            if (response.data && (response.data.url || response.data.picker || response.data.status === 'stream')) {
-                console.log(`[TOOLKIT] Tactical Uplink Succeeded on ${serverUrl}`);
-                logAction(req.user, "MEDIA_EXPORT", `**URL:** ${url}\n**Type:** ${type.toUpperCase()}\n**Qual:** ${resolution || 'N/A'}`);
-                return res.json({
-                    success: true,
-                    data: response.data
-                });
-            } else if (response.data && response.data.text) {
-                console.warn(`[TOOLKIT] Server returned error status: ${response.data.text}`);
-                lastError = response.data.text;
-            } else {
-                console.warn(`[TOOLKIT] Unexpected payload structure:`, response.data);
-                lastError = "Invalid response schema.";
+        if (hasCookiesFile) {
+            options.cookies = './cookies.txt';
+        } else {
+            let browserVal = browser;
+            if (!browserVal) {
+                if (process.platform === 'win32') {
+                    browserVal = 'chrome';
+                } else if (process.platform === 'linux') {
+                    browserVal = 'firefox';
+                }
             }
-        } catch (err) {
-            console.warn(`[TOOLKIT] Server ${serverUrl} failed:`, err.message);
-            lastError = err.response?.data?.text || err.message;
+            if (browserVal) {
+                options.cookiesFromBrowser = browserVal;
+            }
         }
-    }
 
-    // Attempted all servers, none succeeded
-    res.status(502).json({
-        success: false,
-        message: `Tactical conversion rejected on all servers. Detail: ${lastError || "Unknown connection error"}`
-    });
+        const output = await youtubedl(url, options);
+
+        let directUrl = output.url;
+        if (!directUrl && output.formats) {
+            // Find the highest quality stream that contains both a video codec AND an audio codec combined
+            const combinedStream = [...output.formats]
+                .reverse()
+                .find(f => f.vcodec !== 'none' && f.acodec !== 'none' && f.url);
+            
+            directUrl = combinedStream ? combinedStream.url : output.formats[output.formats.length - 1].url;
+        }
+
+        if (!directUrl) {
+            return res.status(500).json({ success: false, message: "Could not resolve a direct media stream URL." });
+        }
+
+        logAction(req.user, "MEDIA_EXPORT", `**URL:** ${url}\n**Type:** ${isAudioOnly ? 'AUDIO (MP3)' : 'VIDEO (MP4)'}\n**Title:** ${output.title || 'N/A'}`);
+
+        res.json({
+            status: "redirect",
+            url: directUrl,
+            title: output.title || "download"
+        });
+    } catch (err) {
+        console.error(`[TOOLKIT] Local extraction failure:`, err.message);
+        let errorMsg = `Extraction failed: ${err.message}`;
+        const lowerErr = err.message ? err.message.toLowerCase() : "";
+        if (lowerErr.includes("sign in") || lowerErr.includes("bot") || lowerErr.includes("confirm you")) {
+            errorMsg += " Authentication wall encountered. Drop a Netscape-formatted 'cookies.txt' file into your toolkit backend root folder to bypass.";
+        }
+        res.status(500).json({
+            success: false,
+            message: errorMsg
+        });
+    }
 });
 
 // --- SYSTEM LOGS ---

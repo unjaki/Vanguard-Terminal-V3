@@ -1,5 +1,16 @@
 [
   {
+    "version": "5.0.0",
+    "date": "2026-05-30",
+    "notes": [
+      "Mainframe Skin Selector & Theme Registry: Integrated a highly interactive visual customizer featuring multiple responsive terminal styles: Vanguard Standard, Midnight Discord, System24 Hacker Phosphor, Amber Mainframe, Cyberpunk Megamart Matrix, and clinical Nordic Frost.",
+      "Visual Theme Sandbox Engine: Developed an interactive real-time cognitive preview container with live custom CSS variable property mapping, mockup system grids, synchronized live hex readout badges, and quick-action skin apply authorization triggers.",
+      "Decommissioned Legacy Components: Cleaned up terminal navigation layout by scrapping the obsolete and unstable server widget & discovery lookup integrations to optimize operative bandwidth.",
+      "Version Telemetry Optimization: Resolved page sync issues in the Operational History terminal, configuring instant live auto-load triggers on navigation tab activation."
+    ],
+    "author": "Vanguard-AI"
+  },
+  {
     "version": "4.2.0",
     "date": "2026-05-20",
     "notes": [
@@ -345,6 +356,7 @@
     "author": "Vanguard-AI"
   },
   {
+    "version": "3.6.2",
     "date": "2026-05-02",
     "notes": [
       "Visual Recon Recalibration: Enforced high-contrast (black) typography for sub-division unit labels.",
