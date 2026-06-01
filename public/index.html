@@ -904,7 +904,7 @@
                         <p style="font-size: 0.7rem; color: #555; margin: 5px 0 0 0;">OPERATIVE TRAINING STAGE & TACTICAL PROTOCOL OVERRIDES</p>
                     </div>
                     <!-- Game Switcher Buttons -->
-                    <div style="display: flex; gap: 8px;">
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                         <button onclick="selectArcadeGame('breach')" id="btn-game-breach" style="font-size: 0.65rem; background: rgba(0, 255, 136, 0.1); border: 1px solid var(--neon); color: var(--neon); padding: 5px 12px; cursor: pointer; border-radius: 3px; font-weight: bold; letter-spacing: 0.5px; outline: none;">
                             NETHACK
                         </button>
@@ -913,6 +913,9 @@
                         </button>
                         <button onclick="selectArcadeGame('doom')" id="btn-game-doom" style="font-size: 0.65rem; background: transparent; border: 1px solid #222; color: #888; padding: 5px 12px; cursor: pointer; border-radius: 3px; font-weight: bold; letter-spacing: 0.5px; outline: none;">
                             DOOM CORE
+                        </button>
+                        <button onclick="selectArcadeGame('boxedwine')" id="btn-game-boxedwine" style="font-size: 0.65rem; background: transparent; border: 1px solid #222; color: #888; padding: 5px 12px; cursor: pointer; border-radius: 3px; font-weight: bold; letter-spacing: 0.5px; outline: none;">
+                            WINE (WINDOWS)
                         </button>
                     </div>
                 </div>
@@ -996,6 +999,235 @@
                             </div>
                         </div>
                     </div>
+                </div>
+
+                <!-- Game 4: BoxedWine Windows Simulator -->
+                <div id="game-container-boxedwine" class="intel-card" style="border-left: 2px solid var(--neon); display: none;">
+                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px; border-bottom: 1px solid #222; padding-bottom: 15px;">
+                        <div>
+                            <span style="font-size: 0.6rem; color: #888; display: block; letter-spacing: 1px;">VANGUARD COMPATIBILITY LAYER</span>
+                            <span style="font-size: 0.85rem; font-weight: bold; color: #fff;">WINE WINDOWS EMULATION MODULE</span>
+                        </div>
+                        <div style="text-align: right;">
+                            <span style="font-size: 0.6rem; color: #888; display: block; letter-spacing: 1px;">EMULATION ENGINE</span>
+                            <span style="font-size: 0.85rem; font-family: monospace; font-weight: bold; color: var(--neon); letter-spacing: 1px;">BOXEDWINE x86 WASM</span>
+                        </div>
+                    </div>
+
+                    <p style="color: #888; font-size: 0.75rem; margin-top: 0; line-height: 1.4;">
+                        Run Windows executables directly in the sandbox sandbox layout. Since code uploads in the developer panel are limited to 30MB, you can download huge files (like your <strong>260MB ZIP</strong> file) directly from any remote URL directly onto the server/VM storage below!
+                    </p>
+
+                    <!-- Manager Panel Grid -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                        <!-- Col 1: Downloader -->
+                        <div style="background: rgba(0, 0, 0, 0.4); border: 1px solid #222; border-radius: 4px; padding: 12px;">
+                            <span style="font-size: 0.65rem; color: var(--neon); font-weight: bold; display: block; margin-bottom: 8px; letter-spacing: 0.5px;">DOWNLOAD ZIP TO VM STORAGE</span>
+                            <p style="color: #666; font-size: 0.65rem; margin: 0 0 10px 0;">Paste any direct link (e.g. Dropbox, Google Drive direct, or static zip) to stream copy it directly onto the VM filesystem.</p>
+                            
+                            <div style="display: flex; flex-direction: column; gap: 8px;">
+                                <input type="text" id="bw-download-url" placeholder="Direct URL (e.g., https://site.com/game.zip)" style="flex: 1; background: #050505; border: 1px solid #222; color: #fff; padding: 6px 10px; font-size: 0.7rem; font-family: monospace; border-radius: 3px; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='var(--neon)'" onblur="this.style.borderColor='#222'">
+                                <div style="display: flex; gap: 8px;">
+                                    <input type="text" id="bw-download-filename" placeholder="Target Alias (e.g., TJOC2D.zip)" style="flex: 1; background: #050505; border: 1px solid #222; color: #fff; padding: 6px 10px; font-size: 0.7rem; font-family: monospace; border-radius: 3px; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='var(--neon)'" onblur="this.style.borderColor='#222'">
+                                    <button onclick="triggerGameDownload()" style="background: rgba(0, 255, 136, 0.1); border: 1px solid var(--neon); color: var(--neon); padding: 5px 12px; font-size: 0.7rem; font-weight: bold; border-radius: 3px; cursor: pointer; text-transform: uppercase;">Download</button>
+                                </div>
+                            </div>
+
+                            <!-- Live Downloads Monitor -->
+                            <div id="bw-downloads-monitor" style="margin-top: 10px; display: none; background: #0a0a0a; border: 1px dashed #333; padding: 8px; border-radius: 3px;">
+                                <div style="display: flex; justify-content: space-between; font-size: 0.65rem; color: #aaa; margin-bottom: 4px;">
+                                    <span id="bw-monitor-filename">TJOC2D.zip</span>
+                                    <span id="bw-monitor-rate">0% (0MB/0MB)</span>
+                                </div>
+                                <div style="width: 100%; height: 4px; background: #161616; border-radius: 2px; overflow: hidden;">
+                                    <div id="bw-monitor-progressbar" style="height: 100%; width: 0%; background: var(--neon); transition: width 0.3s ease;"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Col 2: Library -->
+                        <div style="background: rgba(0, 0, 0, 0.4); border: 1px solid #222; border-radius: 4px; padding: 12px; display: flex; flex-direction: column;">
+                            <span style="font-size: 0.65rem; color: var(--neon); font-weight: bold; display: block; margin-bottom: 8px; letter-spacing: 0.5px;">VM SERVER GAME LIBRARY</span>
+                            
+                            <div id="bw-library-list" style="flex: 1; overflow-y: auto; max-height: 110px; padding-right: 5px;">
+                                <div style="text-align: center; font-size: 0.65rem; color: #555; padding: 25px 0;">
+                                    SCANNING VM DRIVE FOR MOUNTED ASSETS...
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sandbox IFrame Block -->
+                    <div style="margin-top: 15px; background: #050505; border: 1px solid #222; border-radius: 4px; padding: 10px; position: relative;">
+                        <iframe id="boxedwine-iframe" src="" style="width: 100%; height: 750px; border: none; background: #000; border-radius: 2px;"></iframe>
+                    </div>
+
+                    <script>
+                        let livePollInterval = null;
+
+                        async function fetchGameLibrary() {
+                            try {
+                                const response = await fetch('/api/games');
+                                const data = await response.json();
+                                const container = document.getElementById('bw-library-list');
+                                
+                                if (!data.games || data.games.length === 0) {
+                                    container.innerHTML = `
+                                        <div style="text-align: center; font-size: 0.65rem; color: #666; padding: 25px 0; border: 1px dashed #222; border-radius: 3px;">
+                                            NO CUSTOM GAMES DETECTED IN STORAGE ROOM.<br>
+                                            <span style="color: #444; font-size: 0.6rem;">Use the URL downloader form to pull games in.</span>
+                                        </div>
+                                    `;
+                                    return;
+                                }
+
+                                let html = '<div style="display: flex; flex-direction: column; gap: 6px;">';
+                                data.games.forEach(game => {
+                                    html += `
+                                        <div style="display: flex; align-items: center; justify-content: space-between; background: #050505; border: 1px solid #222; padding: 6px 10px; border-radius: 3px;">
+                                            <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 150px;">
+                                                <div style="font-size: 0.7rem; color: #fff; font-family: monospace;" title="${game.name}">${game.name}</div>
+                                                <div style="font-size: 0.55rem; color: #666;">Size: ${game.size}</div>
+                                            </div>
+                                            <div style="display: flex; gap: 4px;">
+                                                <button onclick="playTargetUrlGame('${game.name}')" style="background: rgba(0, 255, 136, 0.1); border: 1px solid var(--neon); color: var(--neon); font-size: 0.6rem; padding: 2px 8px; cursor: pointer; border-radius: 2px; font-weight: bold;">LAUNCH</button>
+                                                <button onclick="deleteTargetUrlGame('${game.name}')" style="background: rgba(255, 0, 85, 0.1); border: 1px solid rgb(255, 0, 85); color: rgb(255, 0, 85); font-size: 0.6rem; padding: 2px 6px; cursor: pointer; border-radius: 2px; font-weight: bold;">DEL</button>
+                                            </div>
+                                        </div>
+                                    `;
+                                });
+                                html += '</div>';
+                                container.innerHTML = html;
+                            } catch (e) {
+                                console.error("Game library scanning error:", e);
+                            }
+                        }
+
+                        async function triggerGameDownload() {
+                            const urlField = document.getElementById('bw-download-url');
+                            const fileField = document.getElementById('bw-download-filename');
+                            
+                            const url = urlField.value.trim();
+                            const filename = fileField.value.trim();
+
+                            if (!url) {
+                                alert("Please supply a remote download URL.");
+                                return;
+                            }
+
+                            try {
+                                const response = await fetch('/api/games/download', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ url, filename })
+                                });
+                                const responseData = await response.json();
+                                if (!response.ok) {
+                                    alert("Download failed: " + (responseData.error || "Unknown"));
+                                    return;
+                                }
+
+                                // Clear input fields
+                                urlField.value = "";
+                                fileField.value = "";
+
+                                // Show progress monitor and start live polling
+                                document.getElementById('bw-downloads-monitor').style.display = 'block';
+                                startDownloadProgressMonitor();
+                            } catch (err) {
+                                alert("Failed to communicate with VM downlink: " + err.message);
+                            }
+                        }
+
+                        function startDownloadProgressMonitor() {
+                            if (livePollInterval) clearInterval(livePollInterval);
+
+                            livePollInterval = setInterval(async () => {
+                                try {
+                                    const res = await fetch('/api/games/download-status');
+                                    const statusData = await res.json();
+                                    
+                                    const activeKeys = Object.keys(statusData);
+                                    if (activeKeys.length === 0) {
+                                        document.getElementById('bw-downloads-monitor').style.display = 'none';
+                                        clearInterval(livePollInterval);
+                                        return;
+                                    }
+
+                                    // Check the latest active downloading task
+                                    const runningTaskKey = activeKeys.find(k => statusData[k].status === 'downloading' || statusData[k].status === 'queued') || activeKeys[activeKeys.length - 1];
+                                    const task = statusData[runningTaskKey];
+
+                                    const filenameEl = document.getElementById('bw-monitor-filename');
+                                    const rateEl = document.getElementById('bw-monitor-rate');
+                                    const progressbarEl = document.getElementById('bw-monitor-progressbar');
+
+                                    filenameEl.textContent = runningTaskKey;
+                                    
+                                    if (task.status === 'queued') {
+                                        rateEl.textContent = "QUEUED...";
+                                        progressbarEl.style.width = "5%";
+                                    } else if (task.status === 'downloading') {
+                                        const mbDownloaded = (task.downloaded / (1024 * 1024)).toFixed(1);
+                                        const mbTotal = task.total > 0 ? (task.total / (1024 * 1024)).toFixed(1) + " MB" : "Unknown size";
+                                        const progressPct = task.progress >= 0 ? task.progress + "%" : "Downloading...";
+                                        
+                                        rateEl.textContent = `${progressPct} (${mbDownloaded}MB / ${mbTotal})`;
+                                        progressbarEl.style.width = task.progress >= 0 ? `${task.progress}%` : '50%';
+                                    } else if (task.status === 'completed') {
+                                        rateEl.textContent = "COMPLETED SUCCESSFULLY";
+                                        progressbarEl.style.width = "100%";
+                                        setTimeout(() => {
+                                            document.getElementById('bw-downloads-monitor').style.display = 'none';
+                                        }, 3000);
+                                        clearInterval(livePollInterval);
+                                        fetchGameLibrary();
+                                    } else if (task.status === 'failed') {
+                                        rateEl.textContent = "FAILED: " + (task.error || "Incomplete");
+                                        progressbarEl.style.width = "100%";
+                                        progressbarEl.style.backgroundColor = "rgb(255, 0, 85)";
+                                        setTimeout(() => {
+                                            document.getElementById('bw-downloads-monitor').style.display = 'none';
+                                        }, 8000);
+                                        clearInterval(livePollInterval);
+                                        fetchGameLibrary();
+                                    }
+                                } catch (e) {
+                                    console.error("Poll error:", e);
+                                }
+                            }, 1000);
+                        }
+
+                        function playTargetUrlGame(gameName) {
+                            const iframe = document.getElementById('boxedwine-iframe');
+                            if (iframe) {
+                                // Load BoxedWine, point it directly to the server side hosted files:
+                                iframe.src = `/boxedwine/v1/boxedwine.html?app=/boxedwine/games/${encodeURIComponent(gameName)}`;
+                            }
+                        }
+
+                        async function deleteTargetUrlGame(gameName) {
+                            if (!confirm(`Are you sure you want to reclaim storage space by deleting "${gameName}" from the VM?`)) {
+                                return;
+                            }
+                            try {
+                                const res = await fetch(`/api/games/${encodeURIComponent(gameName)}`, { method: 'DELETE' });
+                                const data = await res.json();
+                                if (data.success) {
+                                    fetchGameLibrary();
+                                } else {
+                                    alert("Removal protocol aborted: " + (data.error || "Unknown"));
+                                }
+                            } catch (err) {
+                                alert("Failed to clear file: " + err.message);
+                            }
+                        }
+
+                        // Initialize library scanning immediately on DOM load
+                        document.addEventListener("DOMContentLoaded", () => {
+                            fetchGameLibrary();
+                        });
+                    </script>
                 </div>
             </div>
 
@@ -2684,6 +2916,7 @@
             document.getElementById('game-container-breach').style.display = gameType === 'breach' ? 'block' : 'none';
             document.getElementById('game-container-packet').style.display = gameType === 'packet' ? 'block' : 'none';
             document.getElementById('game-container-doom').style.display = gameType === 'doom' ? 'block' : 'none';
+            document.getElementById('game-container-boxedwine').style.display = gameType === 'boxedwine' ? 'block' : 'none';
 
             document.getElementById('btn-game-breach').style.background = gameType === 'breach' ? 'rgba(0, 255, 136, 0.1)' : 'transparent';
             document.getElementById('btn-game-breach').style.borderColor = gameType === 'breach' ? 'var(--neon)' : '#222';
@@ -2697,18 +2930,36 @@
             document.getElementById('btn-game-doom').style.borderColor = gameType === 'doom' ? 'var(--neon)' : '#222';
             document.getElementById('btn-game-doom').style.color = gameType === 'doom' ? 'var(--neon)' : '#888';
 
+            document.getElementById('btn-game-boxedwine').style.background = gameType === 'boxedwine' ? 'rgba(0, 255, 136, 0.1)' : 'transparent';
+            document.getElementById('btn-game-boxedwine').style.borderColor = gameType === 'boxedwine' ? 'var(--neon)' : '#222';
+            document.getElementById('btn-game-boxedwine').style.color = gameType === 'boxedwine' ? 'var(--neon)' : '#888';
+
+            const iframe = document.getElementById('boxedwine-iframe');
             if (gameType === 'breach') {
                 stopTetrisSimulator();
                 stopDoomSimulator();
                 startNethackSimulator();
+                if (iframe) iframe.src = '';
             } else if (gameType === 'packet') {
                 stopNethackSimulator();
                 stopDoomSimulator();
                 startTetrisSimulator();
+                if (iframe) iframe.src = '';
             } else if (gameType === 'doom') {
                 stopNethackSimulator();
                 stopTetrisSimulator();
                 startDoomSimulator();
+                if (iframe) iframe.src = '';
+            } else if (gameType === 'boxedwine') {
+                stopNethackSimulator();
+                stopTetrisSimulator();
+                stopDoomSimulator();
+                if (iframe && (!iframe.src || iframe.src === '' || iframe.src === window.location.href)) {
+                    iframe.src = '/boxedwine/v1/boxedwine.html';
+                }
+                if (typeof fetchGameLibrary === 'function') {
+                    fetchGameLibrary();
+                }
             }
         }
 

@@ -24,8 +24,8 @@ const IntelCache = require(path.join(__dirname, 'models', 'IntelCache.js'));
 const ROBLOX_FALLBACK_IMAGE = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNTAiIGhlaWdodD0iMTUwIiB2aWV3Qm94PSIwIDAgMjQgMjQiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzU1NTU1NSIgc3Ryb2tlLXdpZHRoPSIxLjUiPjxyZWN0IHdpZHRoPSIyNCIgaGVpZHRoPSIyNCIgcng9IjIiIGZpbGw9IiMwZDBkMGQiLz48cGF0aCBkPSJNMTggMjFhNiA2IDAgMCAwLTEyIDAiLz48Y2lyY2xlIGN4PSIxMiIgY3k9IjEwIiByPSI0Ii8+PC9zdmc+";
 
 const rbApi = (subdomain, endpoint) => {
-    // Using rotunnel.com as per commander directive for enhanced rate-limit bypass
-    return `https://${subdomain}.rotunnel.com${endpoint}`;
+    // Route to Cloudflare worker on api.vanguard-terminal.me as requested
+    return `https://api.vanguard-terminal.me/roblox/${subdomain}${endpoint}`;
 };
 
 const app = express();
@@ -63,6 +63,14 @@ class RobloxRequestQueue {
     }
 
     async enqueue(url, options = {}, method = 'get', body = null, retries = 5) {
+        // Automatically inject Cloudflare Worker authorization secret if using the custom api
+        if (url && url.includes('api.vanguard-terminal.me')) {
+            options = options || {};
+            options.headers = options.headers || {};
+            options.headers['X-Proxy-Secret'] = process.env.PROXY_SECRET || 'V3R1745_357_Qu0d_53RV47uR!';
+            options.headers['Accept'] = 'application/json';
+        }
+
         // Create a unique key for the request to prevent duplicate bursts
         const key = `${method}:${url}:${body ? JSON.stringify(body) : ''}`;
 
@@ -420,7 +428,7 @@ app.get('/api/proxy/roblox', async (req, res) => {
         const response = await fetch(targetUrl, {
             method: 'GET',
             headers: {
-                'X-Proxy-Secret': 'V3R1745_357_Qu0d_53RV47uR!',
+                'X-Proxy-Secret': process.env.PROXY_SECRET || 'V3R1745_357_Qu0d_53RV47uR!',
                 'Accept': 'application/json'
             }
         });
@@ -1287,6 +1295,159 @@ app.post('/api/toolkit/yt-download', protectTier(2), async (req, res) => {
             message: errorMsg
         });
     }
+});
+
+// --- BOXEDWINE GAME DOWNLOADER PROTOCOLS ---
+const GAMES_DIR = path.join(__dirname, 'public', 'boxedwine', 'games');
+const activeDownloads = {};
+
+// Ensure games directory exists
+const fsExtra = require('fs');
+if (!fsExtra.existsSync(GAMES_DIR)) {
+    fsExtra.mkdirSync(GAMES_DIR, { recursive: true });
+}
+
+// 1. List games inside the VM storage
+app.get('/api/games', async (req, res) => {
+    try {
+        const files = await fs.readdir(GAMES_DIR);
+        const zips = files.filter(f => f.toLowerCase().endsWith('.zip'));
+        const gamesList = [];
+        
+        for (const file of zips) {
+            const stats = await fs.stat(path.join(GAMES_DIR, file));
+            gamesList.push({
+                name: file,
+                size: (stats.size / (1024 * 1024)).toFixed(1) + " MB",
+                sizeInBytes: stats.size,
+                downloadedAt: stats.mtime
+            });
+        }
+        res.json({ games: gamesList });
+    } catch (err) {
+        res.status(500).json({ error: "Failed to list games", details: err.message });
+    }
+});
+
+// 2. Download status
+app.get('/api/games/download-status', (req, res) => {
+    res.json(activeDownloads);
+});
+
+// 3. Delete downloaded game
+app.delete('/api/games/:filename', async (req, res) => {
+    try {
+        const filename = req.params.filename;
+        if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+            return res.status(400).json({ error: "Invalid filename" });
+        }
+        const filePath = path.join(GAMES_DIR, filename);
+        await fs.unlink(filePath);
+        res.json({ success: true, message: `Removed ${filename}` });
+    } catch (err) {
+        res.status(500).json({ error: "Failed to delete game", details: err.message });
+    }
+});
+
+// 4. Download a game from URL directly to server storage
+app.post('/api/games/download', async (req, res) => {
+    const { url, filename } = req.body;
+    if (!url) {
+        return res.status(400).json({ error: "URL is required" });
+    }
+    
+    let targetName = filename ? filename.trim() : "";
+    if (!targetName) {
+        try {
+            const parsed = new URL(url);
+            const pathname = parsed.pathname;
+            const lastPart = pathname.substring(pathname.lastIndexOf('/') + 1);
+            targetName = lastPart ? decodeURIComponent(lastPart) : "game.zip";
+        } catch (e) {
+            targetName = "game.zip";
+        }
+    }
+    
+    if (!targetName.toLowerCase().endsWith('.zip')) {
+        targetName += ".zip";
+    }
+    
+    if (targetName.includes('..') || targetName.includes('/') || targetName.includes('\\')) {
+        return res.status(400).json({ error: "Invalid target filename" });
+    }
+    
+    const targetPath = path.join(GAMES_DIR, targetName);
+    
+    if (activeDownloads[targetName] && activeDownloads[targetName].status === 'downloading') {
+        return res.status(400).json({ error: `Download of ${targetName} is already in progress` });
+    }
+    
+    activeDownloads[targetName] = {
+        progress: 0,
+        total: 0,
+        downloaded: 0,
+        status: 'queued',
+        error: null
+    };
+    
+    res.json({ 
+        success: true, 
+        message: `Download of '${targetName}' initiated in background on VM server.`,
+        targetFile: targetName
+    });
+    
+    (async () => {
+        try {
+            activeDownloads[targetName].status = 'downloading';
+            
+            const response = await axios({
+                method: 'get',
+                url: url,
+                responseType: 'stream',
+                timeout: 300000 
+            });
+            
+            const totalBytes = parseInt(response.headers['content-length'] || '0', 10);
+            activeDownloads[targetName].total = totalBytes;
+            
+            const writer = require('fs').createWriteStream(targetPath);
+            let downloadedBytes = 0;
+            
+            response.data.on('data', (chunk) => {
+                downloadedBytes += chunk.length;
+                activeDownloads[targetName].downloaded = downloadedBytes;
+                if (totalBytes > 0) {
+                    activeDownloads[targetName].progress = Math.round((downloadedBytes / totalBytes) * 100);
+                } else {
+                    activeDownloads[targetName].progress = -1; 
+                }
+            });
+            
+            response.data.pipe(writer);
+            
+            await new Promise((resolve, reject) => {
+                writer.on('finish', resolve);
+                writer.on('error', (err) => {
+                    writer.close();
+                    reject(err);
+                });
+            });
+            
+            activeDownloads[targetName].status = 'completed';
+            activeDownloads[targetName].progress = 100;
+            console.log(`[DOWNLOAD] Successfully downloaded game zip to server storage: ${targetName}`);
+        } catch (downloadErr) {
+            console.error(`[DOWNLOAD] Failed downloading ${targetName}:`, downloadErr.message);
+            activeDownloads[targetName].status = 'failed';
+            activeDownloads[targetName].error = downloadErr.message;
+            try {
+                const fsSync = require('fs');
+                if (fsSync.existsSync(targetPath)) {
+                    fsSync.unlinkSync(targetPath);
+                }
+            } catch (cleanupErr) {}
+        }
+    })();
 });
 
 // --- SYSTEM LOGS ---

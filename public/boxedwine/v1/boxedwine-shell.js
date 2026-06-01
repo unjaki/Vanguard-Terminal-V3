@@ -24,7 +24,7 @@
         Config.urlParams = "";
         Config.storageMode = STORAGE_MEMORY;
         Config.isRunningInline = false;
-        Config.showUploadDownload = false;
+        Config.showUploadDownload = true;
 
         var isRunning = false;
         var uniqueDirs = {};

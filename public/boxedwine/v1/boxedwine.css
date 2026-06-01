@@ -1,24 +1,74 @@
-.emscripten { padding-right: 0; margin-left: auto; margin-right: auto; display: block; }
-textarea.emscripten { font-family: monospace; width: 100%; color:white; background-color:black;}
-div.emscripten { text-align: center; }
-div.emscripten_border { border: 1px solid black; }
+/* Retro Cybernetic Styling optimized for Vanguard Terminal */
+body {
+    background-color: #0b0b0b !important;
+    color: #e0e2e5 !important;
+    font-family: 'Consolas', 'Courier New', monospace !important;
+    margin: 0;
+    padding: 12px;
+    font-size: 0.75rem;
+    line-height: 1.5;
+}
+
+.emscripten { 
+    padding-right: 0; 
+    margin-left: auto; 
+    margin-right: auto; 
+    display: block; 
+}
+
+textarea.emscripten { 
+    font-family: 'Consolas', monospace; 
+    width: 100%; 
+    color: #00ff88; 
+    background-color: #050505;
+    border: 1px solid #222;
+    padding: 10px;
+    border-radius: 3px;
+    margin-top: 10px;
+}
+
+div.emscripten { 
+    text-align: center; 
+    margin-bottom: 10px;
+    color: #888;
+}
+
+div.emscripten_border { 
+    border: 1px dashed #333; 
+    background: #050505;
+    padding: 8px;
+    border-radius: 4px;
+    transition: border-color 0.3s ease;
+}
+
+div.emscripten_border:hover {
+    border-color: #00ff88;
+}
+
 /* the canvas *must not* have any border or padding, or mouse coords will be wrong */
-canvas.emscripten { border: 0px none; }
+canvas.emscripten { 
+    border: 0px none; 
+    background-color: #000;
+    max-width: 100%;
+}
+
+/* Theme-friendly military/neon spinner */
 .spinner {
-    height: 50px;
-    width: 50px;
-    margin: 0px auto;
+    height: 44px;
+    width: 44px;
+    margin: 20px auto;
     -webkit-animation: rotation .8s linear infinite;
     -moz-animation: rotation .8s linear infinite;
     -o-animation: rotation .8s linear infinite;
     animation: rotation 0.8s linear infinite;
-    border-left: 10px solid rgb(0,150,240);
-    border-right: 10px solid rgb(0,150,240);
-    border-bottom: 10px solid rgb(0,150,240);
-    border-top: 10px solid rgb(100,0,200);
-    border-radius: 100%;
-    background-color: rgb(200,100,250);
+    border-left: 4px solid #00ff88;
+    border-right: 4px solid #161616;
+    border-bottom: 4px solid #161616;
+    border-top: 4px solid #00ff88;
+    border-radius: 50%;
+    background-color: transparent;
 }
+
 @-webkit-keyframes rotation {
     from {-webkit-transform: rotate(0deg);}
     to {-webkit-transform: rotate(360deg);}
@@ -35,53 +85,117 @@ canvas.emscripten { border: 0px none; }
     from {transform: rotate(0deg);}
     to {transform: rotate(360deg);}
 }
+
+/* Cybernetic styled buttons */
+button, input[type="button"] {
+    background: #161616 !important;
+    color: #00ff88 !important;
+    border: 1px solid #333 !important;
+    padding: 6px 12px !important;
+    font-family: 'Consolas', monospace !important;
+    font-size: 0.65rem !important;
+    font-weight: bold !important;
+    cursor: pointer !important;
+    border-radius: 3px !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+    outline: none !important;
+    transition: all 0.2s ease !important;
+    margin: 4px !important;
+}
+
+button:hover, input[type="button"]:hover {
+    background: rgba(0, 255, 136, 0.1) !important;
+    border-color: #00ff88 !important;
+    color: #00ff88 !important;
+    box-shadow: 0 0 8px rgba(0, 255, 136, 0.2) !important;
+}
+
+button:active, input[type="button"]:active {
+    transform: translateY(1px) !important;
+}
+
+/* Form checkboxes & labels */
+input[type="checkbox"] {
+    accent-color: #00ff88 !important;
+    margin-right: 4px !important;
+    vertical-align: middle !important;
+    cursor: pointer !important;
+}
+
+#inline {
+    border-top: 1px solid #1a1a1a;
+    padding-top: 10px;
+}
+
+/* Modal windows inside iframe */
 .modalDialog {
     position: fixed;
-    font-family: Arial, Helvetica, sans-serif;
+    font-family: 'Consolas', monospace;
     top: 0;
     right: 0;
     bottom: 0;
     left: 0;
-    background: rgba(0,0,0,0.8);
-    z-index:99999;
+    background: rgba(0,0,0,0.85);
+    z-index: 99999;
     opacity: 0;
     -webkit-transition: opacity 400ms ease-in;
     -moz-transition: opacity 400ms ease-in;
     transition: opacity 400ms ease-in;
     pointer-events: none;
 }
-.modalDialog:target{
+
+.modalDialog:target {
     opacity: 1;
     pointer-events: auto;
 }
+
 .modalDialog > div {
-    width: 400px;
+    width: 440px;
     position: relative;
     margin: 10% auto;
-    padding: 5px 20px 13px 20px;
-    border-radius: 10px;
-    background: #fff;
+    padding: 15px 20px;
+    border-radius: 4px;
+    background: #111;
+    border: 1px solid #00ff88;
+    color: #fff;
+    box-shadow: 0 0 20px rgba(0, 255, 136, 0.15);
 }
-.close{
-    background: #606061;
-    color: #ffffff;
-    line-height: 25px;
+
+.modalDialog h3 {
+    margin-top: 0;
+    color: #00ff88;
+    font-size: 0.85rem;
+    letter-spacing: 1px;
+    border-bottom: 1px solid #222;
+    padding-bottom: 8px;
+}
+
+.close {
+    background: #222;
+    color: #00ff88;
+    border: 1px solid #333;
+    line-height: 22px;
     position: absolute;
-    right: -12px;
+    right: 10px;
     text-align: center;
-    top: -10px;
-    width: 24px;
+    top: 10px;
+    width: 22px;
     text-decoration: none;
-    -webkit-border-radius: 12px;
-    border-radius: 12px;
-    -webkit-box-shadow: 1px 1px 3px #000;
-    box-shadow: 1px 1px 3px #000;
+    border-radius: 3px;
+    font-weight: bold;
 }
-.close:hover{
-    background: #00d9ff;
+
+.close:hover {
+    background: #00ff88;
+    color: #000;
 }
-.scroll-style
-{
+
+.scroll-style {
     max-height: 250px;
     overflow-y: scroll;
+    background: #050505;
+    border: 1px solid #1a1a1a;
+    padding: 5px;
+    border-radius: 3px;
 }
