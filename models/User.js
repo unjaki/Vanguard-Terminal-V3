@@ -22,6 +22,12 @@ const UserSchema = new mongoose.Schema({
         type: String,
         default: 'General'
     },
+    discordUserId: {
+        type: String,
+        default: null,
+        unique: true,
+        sparse: true
+    },
     createdAt: {
         type: Date,
         default: Date.now

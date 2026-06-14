@@ -16,10 +16,34 @@ const fs = require('fs').promises;
 const { google } = require('googleapis');
 const youtubedl = require('youtube-dl-exec');
 
+// Run Boxedwine Upgrade once to update assets to 26R1.0
+(async () => {
+    try {
+        const fsNormal = require('fs');
+        const readmePath = path.join(__dirname, 'public', 'boxedwine', 'v1', 'readme.txt');
+        let needsUpgrade = true;
+        if (fsNormal.existsSync(readmePath)) {
+            const content = fsNormal.readFileSync(readmePath, 'utf8');
+            if (content.includes('26R1')) {
+                needsUpgrade = false;
+            }
+        }
+        if (needsUpgrade) {
+            const runUpgrade = require('./upgrade-boxedwine');
+            await runUpgrade();
+        } else {
+            console.log("Boxedwine is already upgraded to version 26R1.0 (Skipped download)");
+        }
+    } catch (e) {
+        console.error("Auto Upgrade Error:", e);
+    }
+})();
+
 // 1. Models
 const User = require(path.join(__dirname, 'models', 'User.js')); 
 const Division = require(path.join(__dirname, 'models', 'divisions.js'));
 const IntelCache = require(path.join(__dirname, 'models', 'IntelCache.js'));
+const AdminToken = require(path.join(__dirname, 'models', 'AdminToken.js'));
 
 const ROBLOX_FALLBACK_IMAGE = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNTAiIGhlaWdodD0iMTUwIiB2aWV3Qm94PSIwIDAgMjQgMjQiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzU1NTU1NSIgc3Ryb2tlLXdpZHRoPSIxLjUiPjxyZWN0IHdpZHRoPSIyNCIgaGVpZHRoPSIyNCIgcng9IjIiIGZpbGw9IiMwZDBkMGQiLz48cGF0aCBkPSJNMTggMjFhNiA2IDAgMCAwLTEyIDAiLz48Y2lyY2xlIGN4PSIxMiIgY3k9IjEwIiByPSI0Ii8+PC9zdmc+";
 
@@ -49,7 +73,17 @@ axios.defaults.httpsAgent = axiosAgent;
 
 app.use(cors());
 app.use(express.json()); // Essential for POST requests
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+    setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.wasm')) {
+            res.setHeader('Content-Type', 'application/wasm');
+            res.setHeader('Content-Encoding', 'identity');
+        } else if (filePath.endsWith('.zip') || filePath.endsWith('.jsdos')) {
+            res.setHeader('Content-Type', 'application/zip');
+            res.setHeader('Content-Encoding', 'identity');
+        }
+    }
+}));
 
 // 2.5 Roblox Request Queue & Intelligence Throttling
 class RobloxRequestQueue {
@@ -149,7 +183,7 @@ class RobloxRequestQueue {
                 }
             }));
 
-            if (this.queue.length > 0) {
+            if (this.queue.length > 0 && this.delay > 0) {
                 // Wait between batches to prevent rate limits
                 console.log(`[QUEUE] cooldown delay (${this.delay}ms)...`);
                 await new Promise(r => setTimeout(r, this.delay));
@@ -347,6 +381,110 @@ app.get('/system/status', (req, res) => {
 });
 
 // --- ROUTES ---
+
+// Discord Bot Linking Route
+app.post('/api/v1/generate-token', async (req, res) => {
+    const overrideKey = req.header('x-override-key');
+    if (!overrideKey || overrideKey !== process.env.OVERRIDE_KEY) {
+        return res.status(401).json({ error: 'Invalid override key.' });
+    }
+
+    const { targetUser, assignedTier } = req.body;
+    if (!targetUser || !assignedTier) {
+        return res.status(400).json({ error: 'Missing targetUser or assignedTier payload' });
+    }
+
+    try {
+        const token = 'TOKEN-TIER' + assignedTier + '-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+        
+        const adminToken = new AdminToken({
+            token,
+            assignedTier: Number(assignedTier),
+            targetUser
+        });
+        await adminToken.save();
+
+        return res.status(200).json({ token, targetUser, assignedTier });
+    } catch (err) {
+        console.error('[GENERATE TOKEN ERROR]:', err);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+app.post('/api/v1/link-discord', async (req, res) => {
+    const authHeader = req.header('Authorization');
+    
+    // 1. Validate internal API Key
+    if (!authHeader || authHeader !== `Bearer ${process.env.INTERNAL_BOT_API_KEY}`) {
+        return res.status(401).json({ error: 'Unauthorized: Invalid internal API key.' });
+    }
+
+    const { token, discordId } = req.body;
+    if (!token || !discordId) {
+        return res.status(400).json({ error: 'Missing token or discordId payload' });
+    }
+
+    try {
+        // 2. Validate token
+        const tokenRecord = await AdminToken.findOne({ token });
+        if (!tokenRecord) {
+            return res.status(404).json({ error: 'Invalid activation token.' });
+        }
+        if (tokenRecord.isUsed) {
+            return res.status(400).json({ error: 'Token has already been used.' });
+        }
+
+        // 3. Ensure discordId isn't already bound
+        const existingUser = await User.findOne({ discordUserId: discordId });
+        if (existingUser) {
+            return res.status(409).json({ error: `Discord account is already bound to profile: ${existingUser.username}` });
+        }
+
+        // 4. Locate the profile tied to the token
+        let userProfile = await User.findOne({ username: tokenRecord.targetUser });
+        if (!userProfile) {
+            // Auto-deploy profile if not found to ensure tokens always work
+            userProfile = new User({
+                username: tokenRecord.targetUser,
+                password: 'NO_PASSWORD_GENERATED_BY_TOKEN',
+                tier: tokenRecord.assignedTier,
+                unitScope: 'Field Ops',
+                discordUserId: discordId
+            });
+        } else {
+            // Bind discordId and update tier
+        userProfile.discordUserId = discordId;
+        userProfile.tier = tokenRecord.assignedTier;
+    }
+
+    // 5. Flip token status
+    tokenRecord.isUsed = true;
+    tokenRecord.linkedAt = new Date();
+
+    // Atomic save for both documents
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+        await userProfile.save({ session });
+        await tokenRecord.save({ session });
+        await session.commitTransaction();
+    } catch (saveError) {
+        await session.abortTransaction();
+        throw saveError;
+    } finally {
+        session.endSession();
+    }
+
+    return res.status(200).json({ 
+        username: userProfile.username, 
+        newTier: userProfile.tier 
+    });
+
+    } catch (err) {
+        console.error('[LINK DISCORD ERROR]:', err);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+});
 
 // Auth Verification for Frontend
 app.get('/auth/verify', protectTier(2), (req, res) => {
@@ -1469,9 +1607,23 @@ app.get('/system/version-log', async (req, res) => {
     }
 });
 
-// --- DOOM SIMULATION ENVIRONMENT UPLINK ---
+// --- EMULATOR GAME ENVIRONMENT UPLINKS ---
 app.get('/cdn.dos.zone_custom_dos_doom.jsdos', (req, res) => {
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Encoding', 'identity');
     res.sendFile(path.join(__dirname, 'cdn.dos.zone_custom_dos_doom.jsdos'));
+});
+
+app.get('/cdn.dos.zone_custom_dos_nethack.jsdos', (req, res) => {
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Encoding', 'identity');
+    res.sendFile(path.join(__dirname, 'public', 'cdn.dos.zone_custom_dos_nethack.jsdos'));
+});
+
+app.get('/cdn.dos.zone_custom_dos_tetris____.jsdos', (req, res) => {
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Encoding', 'identity');
+    res.sendFile(path.join(__dirname, 'public', 'cdn.dos.zone_custom_dos_tetris____.jsdos'));
 });
 
 const PORT = process.env.PORT || 3000;

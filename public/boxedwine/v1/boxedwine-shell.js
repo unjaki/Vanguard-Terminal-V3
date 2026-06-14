@@ -407,27 +407,82 @@
                             buildBrowserFileSystem(writableStorage, isDropBox, homeAdapter, extraFSs, zipfs);
                         });
                     } else {
-                        var rootListingObject = {};
-                        rootListingObject[Config.rootZipFile] =  null;
-                        BrowserFS.FileSystem.XmlHttpRequest.Create({"index":rootListingObject, "baseUrl": Config.locateRootBaseUrl}, function(e2, xmlHttpFs){
-                            if(e2){
-                                console.log(e2);
-                            }
-                            var rootMfs = new BrowserFS.FileSystem.MountableFileSystem();
-                            rootMfs.mount('/temp', xmlHttpFs);
-                            rootMfs.readFile('/temp/' + Config.rootZipFile, null, flag_r, function callback(e, contents){
-                                if(e){
-                                    console.log(e);
+                        // Download boxedwine.zip (root zip file) using modern, robust XHR
+                        const fullRootUrl = Config.locateRootBaseUrl + Config.rootZipFile;
+                        console.log("XHR fetch root zip:", fullRootUrl);
+
+                        var xhr = new XMLHttpRequest();
+                        xhr.open("GET", fullRootUrl, true);
+                        xhr.responseType = "arraybuffer";
+
+                        xhr.onprogress = function(e) {
+                            if (e.lengthComputable) {
+                                var pct = Math.round((e.loaded / e.total) * 100);
+                                var loadedMB = (e.loaded / (1024 * 1024)).toFixed(1);
+                                var totalMB = (e.total / (1024 * 1024)).toFixed(1);
+                                if (statusElement) {
+                                    statusElement.innerHTML = "Downloading emulator core... " + pct + "% (" + loadedMB + "MB of " + totalMB + "MB)";
                                 }
-                                BrowserFS.FileSystem.ZipFS.Create({"zipData":new Buffer(contents)}, function(e3, zipfs){
-                                    if(e3){
-                                        console.log(e3);
+                                if (progressElement) {
+                                    progressElement.value = pct;
+                                    progressElement.hidden = false;
+                                    progressElement.style.display = 'block';
+                                }
+                            } else {
+                                var loadedMB = (e.loaded / (1024 * 1024)).toFixed(1);
+                                if (statusElement) {
+                                    statusElement.innerHTML = "Downloading emulator core... " + loadedMB + "MB loaded";
+                                }
+                            }
+                        };
+
+                        xhr.onload = function() {
+                            if (xhr.status === 200) {
+                                if (statusElement) {
+                                    statusElement.innerHTML = "Extracting emulator core to sandbox...";
+                                }
+                                if (progressElement) {
+                                    progressElement.style.display = 'none';
+                                }
+                                try {
+                                    var rawResponse = xhr.response;
+                                    if (!rawResponse) {
+                                        throw new Error("Empty core binary received from server");
                                     }
-                                    buildBrowserFileSystem(writableStorage, isDropBox, homeAdapter, extraFSs, zipfs);
-                                });
-                                rootMfs = null;
-                            });
-                        });
+                                    var contents = new Uint8Array(rawResponse);
+                                    console.log("Creating ZipFS for core. Array length:", contents.length);
+                                    var bfsBuffer = new Buffer(contents);
+
+                                    BrowserFS.FileSystem.ZipFS.Create({"zipData": bfsBuffer}, function(e3, zipfs){
+                                        if(e3){
+                                            console.error("Core ZipFS creation failed in callback:", e3);
+                                            if (statusElement) {
+                                                statusElement.innerHTML = "Core extraction failed: " + e3.toString();
+                                            }
+                                            return;
+                                        }
+                                        buildBrowserFileSystem(writableStorage, isDropBox, homeAdapter, extraFSs, zipfs);
+                                    });
+                                } catch (err) {
+                                    console.error("Error creating core ZipFS:", err);
+                                    if (statusElement) {
+                                        statusElement.innerHTML = "Failed preparing core: " + err.toString();
+                                    }
+                                }
+                            } else {
+                                if (statusElement) {
+                                    statusElement.innerHTML = "Failed downloading emulator core: HTTP STATUS " + xhr.status;
+                                }
+                            }
+                        };
+
+                        xhr.onerror = function() {
+                            if (statusElement) {
+                                statusElement.innerHTML = "Failed downloading emulator core. Cross-Origin or Network Error.";
+                            }
+                        };
+
+                        xhr.send();
                     }
                 });
             });
@@ -473,28 +528,96 @@
                     adapterCallback(homeAdapter);
                 });
             }else if(Config.appZipFile.length > 0){
-                    var listingObject = {};
-                    listingObject[Config.appZipFile] =  null;
-                    var mfs = new BrowserFS.FileSystem.MountableFileSystem();
-                    BrowserFS.FileSystem.XmlHttpRequest.Create({"index":listingObject, "baseUrl": Config.locateAppBaseUrl}, function(e2, xmlHttpFs){
-                        if(e2){
-                            console.log(e2);
-                        }
-                        mfs.mount('/temp', xmlHttpFs);
-                        mfs.readFile('/temp/' + Config.appZipFile, null, flag_r, function callback(e, contents){
-                            if(e){
-                                console.log(e);
+                    let appFile = Config.appZipFile;
+                    let appBaseUrl = Config.locateAppBaseUrl;
+                    if (appFile.includes('/')) {
+                        let lastSlash = appFile.lastIndexOf('/');
+                        appBaseUrl = appFile.substring(0, lastSlash + 1);
+                        appFile = appFile.substring(lastSlash + 1);
+                    }
+                    const fullUrl = appBaseUrl + appFile;
+                    console.log("XHR fetch app zip:", fullUrl);
+
+                    var xhr = new XMLHttpRequest();
+                    xhr.open("GET", fullUrl, true);
+                    xhr.responseType = "arraybuffer";
+
+                    xhr.onprogress = function(e) {
+                        const statusEl = document.getElementById('status');
+                        const progressEl = document.getElementById('progress');
+                        if (e.lengthComputable) {
+                            var pct = Math.round((e.loaded / e.total) * 100);
+                            var loadedMB = (e.loaded / (1024 * 1024)).toFixed(1);
+                            var totalMB = (e.total / (1024 * 1024)).toFixed(1);
+                            if (statusEl) {
+                                statusEl.innerHTML = "Downloading game files... " + pct + "% (" + loadedMB + "MB of " + totalMB + "MB)";
                             }
-                            BrowserFS.FileSystem.ZipFS.Create({"zipData":new Buffer(contents)}, function(e3, additionalZipfs){
-                                if(e3){
-                                    console.log(e3);
+                            if (progressEl) {
+                                progressEl.value = pct;
+                                progressEl.hidden = false;
+                                progressEl.style.display = 'block';
+                            }
+                        } else {
+                            var loadedMB = (e.loaded / (1024 * 1024)).toFixed(1);
+                            if (statusEl) {
+                                statusEl.innerHTML = "Downloading game files... " + loadedMB + "MB loaded";
+                            }
+                        }
+                    };
+
+                    xhr.onload = function() {
+                        const statusEl = document.getElementById('status');
+                        const progressEl = document.getElementById('progress');
+                        if (xhr.status === 200) {
+                            if (statusEl) {
+                                statusEl.innerHTML = "Extracting files to emulator sandbox...";
+                            }
+                            if (progressEl) {
+                                progressEl.style.display = 'none';
+                            }
+                            try {
+                                var rawResponse = xhr.response;
+                                if (!rawResponse) {
+                                    throw new Error("Empty binary response received from server");
                                 }
-                                let homeAdapter = new BrowserFS.FileSystem.FolderAdapter("/", additionalZipfs);
-                                adapterCallback(homeAdapter);
-                                mfs = null;
-                            });
-                        });
-                    });
+                                var contents = new Uint8Array(rawResponse);
+                                console.log("Creating ZipFS filesystem from Buffer. Length of Uint8Array:", contents.length);
+                                
+                                var bfsBuffer = new Buffer(contents);
+                                console.log("BrowserFS Buffer successfully wrapping typed array. Buffer size:", bfsBuffer.length);
+
+                                BrowserFS.FileSystem.ZipFS.Create({"zipData": bfsBuffer}, function(e3, additionalZipfs){
+                                    if(e3){
+                                        console.error("ZipFS creation failed in callback:", e3);
+                                        if (statusEl) {
+                                            statusEl.innerHTML = "Extraction failed: " + e3.toString();
+                                        }
+                                        return;
+                                    }
+                                    let homeAdapter = new BrowserFS.FileSystem.FolderAdapter("/", additionalZipfs);
+                                    adapterCallback(homeAdapter);
+                                });
+                            } catch (err) {
+                                console.error("Error creating ZipFS:", err);
+                                if (statusEl) {
+                                    statusEl.innerHTML = "Failed preparing files: " + err.toString();
+                                }
+                            }
+                        } else {
+                            if (statusEl) {
+                                statusEl.innerHTML = "Failed downloading game file: HTTP STATUS " + xhr.status;
+                            }
+                        }
+                    };
+
+                    xhr.onerror = function() {
+                        const statusEl = document.getElementById('status');
+                        if (statusEl) {
+                            statusEl.innerHTML = "Failed downloading game file. Cross-Origin or Network Error.";
+                        }
+                    };
+
+                    xhr.send();
             }else{
                 let homeAdapter = new BrowserFS.FileSystem.FolderAdapter("/", new BrowserFS.FileSystem.InMemory());
                 adapterCallback(homeAdapter);
@@ -917,7 +1040,11 @@
                 params.push("-w");
                 params.push("/home/username/.wine/dosdevices/d:");
             }else if(Config.appZipFile.length > 0 && Config.Program.length > 0 && Config.Program.substring(0 ,1) != "/"){
-                var subDirectory = Config.appZipFile.substring(0, Config.appZipFile.lastIndexOf("."));
+                let appFile = Config.appZipFile;
+                if (appFile.includes('/')) {
+                    appFile = appFile.substring(appFile.lastIndexOf('/') + 1);
+                }
+                var subDirectory = appFile.substring(0, appFile.lastIndexOf("."));
                 params.push("-w");
                 if(isInSubDirectory(Config.appDirPrefix, subDirectory)){
                     params.push("/home/username/.wine/dosdevices/d:/" + subDirectory);

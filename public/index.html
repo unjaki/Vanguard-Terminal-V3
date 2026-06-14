@@ -525,6 +525,9 @@
                         <button onclick="loadPersonnelManagement()" style="width: auto; padding: 8px 15px; background: #222; color: var(--neon); border: 1px solid #333;">
                             <i data-lucide="key"></i> APPLY
                         </button>
+                        <button onclick="openTokenModal()" id="btn-generate-token" style="width:auto; padding:8px 20px; display: none;">
+                            <i data-lucide="key-round"></i> GENERATE TOKEN
+                        </button>
                         <button onclick="document.getElementById('deploy-modal').style.display='flex'" style="width:auto; padding:8px 20px;">
                             <i data-lucide="user-plus"></i> DEPLOY NEW UNIT
                         </button>
@@ -914,9 +917,11 @@
                         <button onclick="selectArcadeGame('doom')" id="btn-game-doom" style="font-size: 0.65rem; background: transparent; border: 1px solid #222; color: #888; padding: 5px 12px; cursor: pointer; border-radius: 3px; font-weight: bold; letter-spacing: 0.5px; outline: none;">
                             DOOM CORE
                         </button>
+                            <!-- BoxedWine Hidden 
                         <button onclick="selectArcadeGame('boxedwine')" id="btn-game-boxedwine" style="font-size: 0.65rem; background: transparent; border: 1px solid #222; color: #888; padding: 5px 12px; cursor: pointer; border-radius: 3px; font-weight: bold; letter-spacing: 0.5px; outline: none;">
                             WINE (WINDOWS)
                         </button>
+                        -->
                     </div>
                 </div>
 
@@ -1001,7 +1006,7 @@
                     </div>
                 </div>
 
-                <!-- Game 4: BoxedWine Windows Simulator -->
+                <!-- Game 4: BoxedWine Windows Simulator (Hidden) -->
                 <div id="game-container-boxedwine" class="intel-card" style="border-left: 2px solid var(--neon); display: none;">
                     <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px; border-bottom: 1px solid #222; padding-bottom: 15px;">
                         <div>
@@ -1536,6 +1541,26 @@
         </main>
     </div>
 
+        <!-- Token Generation Modal -->
+    <div id="token-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:2000; justify-content:center; align-items:center;">
+        <div style="background:var(--card); border:1px solid var(--neon); padding:30px; width:400px; box-shadow:0 0 30px rgba(0,255,136,0.1);">
+            <h3 style="color:var(--neon); margin:0 0 5px 0;">GENERATE ACTIVATION TOKEN</h3>
+            <p style="font-size:0.65rem; color:#666; margin-bottom:20px;">DEPLOY TIER CREDENTIALS FOR DISCORD LINKING</p>
+            
+            <input type="text" id="token-target-user" placeholder="TARGET USER (e.g. Operative_Bravo)" style="width:100%; margin-bottom:15px; background:#0a0a0a;">
+            <input type="number" id="token-tier-level" placeholder="TIER LEVEL (1-5)" min="1" max="5" style="width:100%; margin-bottom:20px; background:#0a0a0a;">
+            
+            <div id="token-result-box" style="display: none; padding: 10px; background: #051005; border: 1px solid var(--neon); color: var(--neon); margin-bottom: 20px; font-family: monospace; font-size: 0.8rem; text-align: center; word-break: break-all;">
+                <!-- Result string -->
+            </div>
+
+            <div style="display:flex; gap:10px;">
+                <button onclick="document.getElementById('token-modal').style.display='none'" style="flex:1; background:#222; color:#888;">CLOSE</button>
+                <button onclick="executeTokenGeneration()" style="flex:1;">GENERATE</button>
+            </div>
+        </div>
+    </div>
+
         <!-- Deployment Modal -->
     <div id="deploy-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:2000; justify-content:center; align-items:center;">
         <div class="container" style="width:400px; border-color:var(--neon);">
@@ -1779,6 +1804,7 @@
                     </thead>
                     <tbody>`;
                 
+                let hasHash = false;
                 users.forEach(u => {
                     html += `<tr>
                         <td style="color:#fff;">${u.username}</td>
@@ -1794,13 +1820,61 @@
                             ` : '<span style="color:#444; font-size:0.5rem;">PROTECTED</span>'}
                         </td>
                     </tr>`;
+                    if (u.password) hasHash = true;
                 });
                 
                 html += `</tbody></table>`;
                 container.innerHTML = html;
+                
+                if (overrideKey === document.getElementById('override-key-input').value && overrideKey !== "") {
+                    document.getElementById('btn-generate-token').style.display = 'inline-flex';
+                } else {
+                    document.getElementById('btn-generate-token').style.display = 'none';
+                }
+                
                 refreshIcons();
             } catch (err) {
                 container.innerHTML = `<p style="color:var(--danger);">DATABASE UPLINK ERROR</p>`;
+            }
+        }
+
+        function openTokenModal() {
+            document.getElementById('token-result-box').style.display = 'none';
+            document.getElementById('token-target-user').value = '';
+            document.getElementById('token-tier-level').value = '';
+            document.getElementById('token-modal').style.display = 'flex';
+        }
+
+        async function executeTokenGeneration() {
+            const targetUser = document.getElementById('token-target-user').value;
+            const assignedTier = document.getElementById('token-tier-level').value;
+            const overrideKey = document.getElementById('override-key-input')?.value || "";
+
+            if (!targetUser || !assignedTier) {
+                alert("Please provide target user and tier level.");
+                return;
+            }
+
+            try {
+                const res = await fetch(`${CONFIG.API_BASE}/api/v1/generate-token`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-override-key': overrideKey
+                    },
+                    body: JSON.stringify({ targetUser, assignedTier })
+                });
+
+                const data = await res.json();
+                if (res.ok) {
+                    const resultBox = document.getElementById('token-result-box');
+                    resultBox.style.display = 'block';
+                    resultBox.innerText = `[SUCCESS] Token Generated:\n\n${data.token}\n\nUser: ${data.targetUser} | Tier: ${data.assignedTier}`;
+                } else {
+                    alert('Token generation failed: ' + (data.error || 'Unknown Error'));
+                }
+            } catch (e) {
+                alert('Token generation failed: ' + e.message);
             }
         }
 
@@ -1901,13 +1975,34 @@
                         const rowId = `row-${Math.random().toString(36).substr(2, 9)}`;
                         
                         row.innerHTML = `
-                            <td style="color:#fff; cursor:pointer;" onclick="openDeepIntel('${data.officer}')">
-                                <i data-lucide="search" style="width:10px; opacity:0.3;"></i> ${data.officer}
+                            <td style="color:#fff;">
+                                <div style="display:flex; align-items:center; gap:5px;">
+                                    <span style="cursor:pointer;" onclick="openDeepIntel('${data.officer}')" title="Hold deep recon operations">
+                                        <i data-lucide="search" style="width:10px; opacity:0.3; margin-right:2px; display:inline-block; vertical-align:middle;"></i>${data.officer}
+                                    </span>
+                                    <button onclick="systemCopyToClipboard('${data.officer}', 'Username')" style="background:transparent; border:none; padding:1px; cursor:pointer; color:#555;" title="Copy Username">
+                                        <i data-lucide="copy" style="width:10px; height:10px;"></i>
+                                    </button>
+                                </div>
                             </td>
-                            <td>${data.robloxId}</td>
+                            <td>
+                                <div style="display:flex; align-items:center; gap:5px;">
+                                    <span>${data.robloxId}</span>
+                                    <button onclick="systemCopyToClipboard('${data.robloxId}', 'Roblox ID')" style="background:transparent; border:none; padding:1px; cursor:pointer; color:#555;" title="Copy Roblox ID">
+                                        <i data-lucide="copy" style="width:10px; height:10px;"></i>
+                                    </button>
+                                </div>
+                            </td>
                             <td style="color:var(--neon)">${data.discordId || '—'}</td>
                             <td style="color:${statusColor}; font-weight:bold;">${data.status}</td>
-                            <td>${data.rank} <span class="badge">LVL ${data.rankId}</span></td>
+                            <td>
+                                <div style="display:flex; align-items:center; gap:5px;">
+                                    <span>${data.rank} <span class="badge">LVL ${data.rankId}</span></span>
+                                    <button onclick="systemCopyToClipboard('${data.rank} [LVL ${data.rankId}]', 'Rank details')" style="background:transparent; border:none; padding:1px; cursor:pointer; color:#555;" title="Copy Rank Details">
+                                        <i data-lucide="copy" style="width:10px; height:10px;"></i>
+                                    </button>
+                                </div>
+                            </td>
                             <td style="color:var(--neon)">${data.nsRank || '—'} <small style="color:#444">[${data.nsStatus}]</small></td>
                             <td>
                                 <div style="display:flex; gap:5px; align-items:center;">
@@ -1918,6 +2013,10 @@
                                     <button onclick="openDeepIntel('${data.officer}')" 
                                             style="padding:4px 8px; font-size:0.6rem; border:1px solid #444; background:transparent; color:#888; width:auto;">
                                         INTEL
+                                    </button>
+                                    <button onclick="systemCopyToClipboard('https://www.roblox.com/users/${data.robloxId}/profile', 'Profile Link')" 
+                                            style="padding:4px 6px; font-size:0.6rem; border:1px dashed var(--neon); background:rgba(0, 255, 136, 0.03); color:var(--neon); width:auto;" title="Copy Roblox Profile Link">
+                                        LNK
                                     </button>
                                     <button id="btn-${rowId}" onclick="toggleSubRow('${rowId}')" class="expand-btn">
                                         <i data-lucide="chevron-down" style="width:12px;"></i>
@@ -1948,7 +2047,7 @@
                                     const config = subDivConfigs[s.name] || subDivConfigs[s.name.toUpperCase()] || { background: '#111' };
                                     const labelColor = config.color === '#000' ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.4)';
                                     return `
-                                        <div class="sub-div-card" style="background: ${config.background}; color: ${config.color || '#fff'}; border: none; display: flex; align-items: center; gap: 10px;">
+                                        <div class="sub-div-card" onclick="systemCopyToClipboard('${s.name}: ${s.rank} [${s.rankId}]', '${s.name} Designation')" style="cursor: pointer; background: ${config.background}; color: ${config.color || '#fff'}; border: none; display: flex; align-items: center; gap: 10px;" title="Click to copy assignment details">
                                             <img src="${s.icon || window.ROBLOX_FALLBACK_IMAGE}" style="width:30px; height:30px; border-radius:3px; border:1px solid rgba(0,0,0,0.2);">
                                             <div style="flex: 1; overflow: hidden;">
                                                 <h6 style="color: ${labelColor}; margin-bottom: 2px; font-weight: 800; text-transform: uppercase; font-size: 0.6rem;">${s.name}</h6>
@@ -2271,6 +2370,54 @@
             }
         }
 
+        function systemCopyToClipboard(text, entityName) {
+            if (!text) return;
+            const cleanText = text.toString().trim();
+            navigator.clipboard.writeText(cleanText).then(() => {
+                showToast(`COPIED: ${entityName.toUpperCase()}`, 'var(--neon)');
+            }).catch(err => {
+                // Fallback approach
+                const textArea = document.createElement("textarea");
+                textArea.value = cleanText;
+                textArea.style.position = "fixed";
+                textArea.style.opacity = "0";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    showToast(`COPIED: ${entityName.toUpperCase()}`, 'var(--neon)');
+                } catch (copyErr) {
+                    showToast("COPY FAILURE - MANUAL SELECTION REQUIRED", "var(--danger)");
+                }
+                document.body.removeChild(textArea);
+            });
+        }
+
+        function copyFullIntelBrief() {
+            const data = window.lastLoadedReconData;
+            if (!data) return;
+            const joinDate = data.created ? new Date(data.created).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : "UNKNOWN";
+            const report = `--- VANGUARD DEEP INTEL REPORT ---
+Username: ${data.username.toUpperCase()}
+Display Name: ${data.displayName}
+Roblox ID: ${data.userId}
+Roblox Profile: https://www.roblox.com/users/${data.userId}/profile
+Joined: ${joinDate.toUpperCase()}
+Bio: ${data.description || 'REDACTED'}
+
+COMMUNITY SAFETY INDEX:
+- Security Level: ${data.isCondoUser || (data.rotector && data.rotector.risk_level === 'High') ? 'HIGH RISK' : (data.rotector ? data.rotector.risk_level.toUpperCase() : 'STABLE')}
+- Rotector Scan: ${data.rotector ? data.rotector.risk_level.toUpperCase() : 'N/A'}
+
+GROUP ASSIGNMENTS:
+${data.groups && data.groups.length > 0 
+  ? data.groups.map(g => ` - ${g.name}: Rank [${g.rank}] (Rank ID: ${g.rankId})`).join('\n') 
+  : ' - NONE DETECTED'}
+----------------------------------`;
+            systemCopyToClipboard(report, "Full Intel Report");
+        }
+
         async function openDeepIntel(username, forceRefresh = false) {
             const modal = document.getElementById('intel-modal');
             const content = document.getElementById('intel-modal-content');
@@ -2323,6 +2470,7 @@
                 
                 if (!res.ok) throw new Error(data.message);
 
+                window.lastLoadedReconData = data;
                 window.currentIntelOutfits = data.outfits || [];
                 const joinDate = data.created ? new Date(data.created).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : "UNKNOWN";
 
@@ -2339,13 +2487,31 @@
                             <div class="avatar-container" style="position:relative;">
                                 <img src="${data.avatar}" style="width:100%; filter: drop-shadow(0 0 10px rgba(0,255,136,0.2));">
                             </div>
-                            <div style="display:flex; justify-content:center; gap:10px; margin-bottom: 20px;">
+                            <div style="display:flex; justify-content:center; gap:12px; margin-bottom: 12px; align-items: center;">
                                 <img src="${data.bust}" style="width:60px; height:60px; border:1px solid var(--neon); background:#000;">
-                                <div style="text-align:left;">
-                                    <h4 style="margin:0; font-size:0.7rem; color:#fff;">${data.displayName}</h4>
-                                    <p style="margin:0; font-size:0.6rem; color:#666;">ID: ${data.userId}</p>
-                                    <p style="margin:0; font-size:0.6rem; color:var(--neon);">JOINED: ${joinDate.toUpperCase()}</p>
+                                <div style="text-align:left; flex: 1; overflow: hidden;">
+                                    <h4 style="margin:0; font-size:0.74rem; color:#fff; display: flex; align-items: center; justify-content: space-between; gap: 4px;">
+                                        <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${data.displayName}">${data.displayName}</span>
+                                        <button onclick="systemCopyToClipboard('${data.displayName}', 'Display Name')" style="background:transparent; border:none; padding:1px; cursor:pointer; color:#888;" title="Copy Display Name">
+                                            <i data-lucide="copy" style="width:11px; height:11px;"></i>
+                                        </button>
+                                    </h4>
+                                    <p style="margin:0; font-size:0.6rem; color:#666; display: flex; align-items: center; justify-content: space-between; gap: 4px;">
+                                        <span>ID: ${data.userId}</span>
+                                        <button onclick="systemCopyToClipboard('${data.userId}', 'User ID')" style="background:transparent; border:none; padding:1px; cursor:pointer; color:#888;" title="Copy Roblox User ID">
+                                            <i data-lucide="copy" style="width:11px; height:11px;"></i>
+                                        </button>
+                                    </p>
+                                    <p style="margin:0; font-size:0.6rem; color:var(--neon); text-transform: uppercase;">JOINED: ${joinDate.toUpperCase()}</p>
                                 </div>
+                            </div>
+                            <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 20px;">
+                                <button onclick="systemCopyToClipboard('https://www.roblox.com/users/${data.userId}/profile', 'Profile Link')" style="width: 100%; text-align: center; font-size: 0.6rem; padding: 6px; background: rgba(0, 255, 136, 0.05); color: var(--neon); border: 1px dashed var(--neon); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px;">
+                                    <i data-lucide="link" style="width:11px; height:11px;"></i> COPY ROBLOX PROFILE
+                                </button>
+                                <button onclick="copyFullIntelBrief()" style="width: 100%; text-align: center; font-size: 0.6rem; padding: 6px; background: rgba(255, 255, 255, 0.03); color: #ccc; border: 1px solid #333; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px;">
+                                    <i data-lucide="file-text" style="width:11px; height:11px;"></i> COPY FULL INTEL REPORT
+                                </button>
                             </div>
                             <div style="background: rgba(0,255,136,0.05); border: 1px solid #222; padding: 15px; font-size: 0.65rem;">
                                 <span style="color:var(--neon); display:block; margin-bottom:5px; font-weight:900;">PERSONNEL BIO:</span>
@@ -2360,7 +2526,12 @@
                         <!-- Right Column: INTEL -->
                         <div class="intel-right">
                             <div style="margin-bottom:20px;">
-                                <h1 style="margin:0; letter-spacing:5px;">${data.username.toUpperCase()}</h1>
+                                <h1 style="margin:0; letter-spacing:5px; display: flex; align-items: center; gap: 8px;">
+                                    <span>${data.username.toUpperCase()}</span>
+                                    <button onclick="systemCopyToClipboard('${data.username}', 'Username')" style="background:transparent; border:none; padding:1px; cursor:pointer; color:#666;" title="Copy Username">
+                                        <i data-lucide="copy" style="width:14px; height:14px;"></i>
+                                    </button>
+                                </h1>
                                 <div style="margin-top:5px; display:flex; gap:10px; flex-wrap: wrap;">
                                     <span class="badge ${data.isCondoUser || (data.rotector && data.rotector.risk_level === 'High') ? 'badge-danger' : 'badge-neon'}">
                                         COMMUNITY INDEX: ${data.isCondoUser || (data.rotector && data.rotector.risk_level === 'High') ? 'HIGH RISK' : (data.rotector ? data.rotector.risk_level.toUpperCase() : 'STABLE')}
@@ -2411,8 +2582,11 @@
                                     ${data.groups.map(g => `
                                         <div style="display:flex; align-items:center; gap:10px; padding:8px; border-bottom:1px solid #111; font-size:0.7rem;">
                                             <img src="${g.icon || window.ROBLOX_FALLBACK_IMAGE}" style="width:20px; height:20px; border-radius:3px; border:1px solid #222;">
-                                            <span style="color:#eee; flex:1;">${g.name}</span>
+                                            <span style="color:#eee; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${g.name}</span>
                                             <span style="color:var(--neon)">${g.rank} <small style="color:#444">[${g.rankId}]</small></span>
+                                            <button onclick="systemCopyToClipboard('${g.name}: ${g.rank} [${g.rankId}]', 'Group assignment details')" style="background:transparent; border:none; padding:1px; cursor:pointer; color:#555;" title="Copy Assignment Details">
+                                                <i data-lucide="copy" style="width:11px; height:11px;"></i>
+                                            </button>
                                         </div>
                                     `).join('')}
                                 </div>
