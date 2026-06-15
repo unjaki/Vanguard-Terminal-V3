@@ -1548,8 +1548,17 @@
             <p style="font-size:0.65rem; color:#666; margin-bottom:20px;">DEPLOY TIER CREDENTIALS FOR DISCORD LINKING</p>
             
             <input type="text" id="token-target-user" placeholder="TARGET USER (e.g. Operative_Bravo)" style="width:100%; margin-bottom:15px; background:#0a0a0a;">
-            <input type="number" id="token-tier-level" placeholder="TIER LEVEL (1-5)" min="1" max="5" style="width:100%; margin-bottom:20px; background:#0a0a0a;">
+            <input type="number" id="token-tier-level" placeholder="TIER LEVEL (1-5)" min="1" max="5" style="width:100%; margin-bottom:15px; background:#0a0a0a;">
             
+            <select id="token-scope-level" style="width: 100%; margin-bottom: 20px; padding: 10px; background: #0a0a0a; color: var(--neon); border: 1px solid var(--neon);">
+                <option value="General">General</option>
+                <option value="Field Ops">Field Ops</option>
+                <option value="CBRN">CBRN</option>
+                <option value="GSMC">GSMC</option>
+                <option value="NS">NS</option>
+                <option value="ALL">ALL</option>
+            </select>
+
             <div id="token-result-box" style="display: none; padding: 10px; background: #051005; border: 1px solid var(--neon); color: var(--neon); margin-bottom: 20px; font-family: monospace; font-size: 0.8rem; text-align: center; word-break: break-all;">
                 <!-- Result string -->
             </div>
@@ -1848,6 +1857,7 @@
         async function executeTokenGeneration() {
             const targetUser = document.getElementById('token-target-user').value;
             const assignedTier = document.getElementById('token-tier-level').value;
+            const scopeVal = document.getElementById('token-scope-level').value;
             const overrideKey = document.getElementById('override-key-input')?.value || "";
 
             if (!targetUser || !assignedTier) {
@@ -1862,7 +1872,7 @@
                         'Content-Type': 'application/json',
                         'x-override-key': overrideKey
                     },
-                    body: JSON.stringify({ targetUser, assignedTier })
+                    body: JSON.stringify({ targetUser, assignedTier, scope: scopeVal })
                 });
 
                 const data = await res.json();

@@ -389,9 +389,9 @@ app.post('/api/v1/generate-token', async (req, res) => {
         return res.status(401).json({ error: 'Invalid override key.' });
     }
 
-    const { targetUser, assignedTier } = req.body;
-    if (!targetUser || !assignedTier) {
-        return res.status(400).json({ error: 'Missing targetUser or assignedTier payload' });
+    const { targetUser, assignedTier, scope } = req.body;
+    if (!targetUser || !assignedTier || !scope) {
+        return res.status(400).json({ error: 'Missing targetUser, assignedTier, or scope payload' });
     }
 
     try {
@@ -400,11 +400,12 @@ app.post('/api/v1/generate-token', async (req, res) => {
         const adminToken = new AdminToken({
             token,
             assignedTier: Number(assignedTier),
-            targetUser
+            targetUser,
+            scope
         });
         await adminToken.save();
 
-        return res.status(200).json({ token, targetUser, assignedTier });
+        return res.status(200).json({ token, targetUser, assignedTier, scope });
     } catch (err) {
         console.error('[GENERATE TOKEN ERROR]:', err);
         return res.status(500).json({ error: 'Internal server error' });
@@ -442,20 +443,26 @@ app.post('/api/v1/link-discord', async (req, res) => {
 
         // 4. Locate the profile tied to the token
         let userProfile = await User.findOne({ username: tokenRecord.targetUser });
+        let generatedPassword = null;
         if (!userProfile) {
+            // Generate a real password and hash it
+            generatedPassword = Math.random().toString(36).substring(2, 10).toUpperCase() + Math.random().toString(36).substring(2, 5);
+            const hashedPassword = await bcrypt.hash(generatedPassword, 10);
+            
             // Auto-deploy profile if not found to ensure tokens always work
             userProfile = new User({
                 username: tokenRecord.targetUser,
-                password: 'NO_PASSWORD_GENERATED_BY_TOKEN',
+                password: hashedPassword,
                 tier: tokenRecord.assignedTier,
-                unitScope: 'Field Ops',
+                unitScope: tokenRecord.scope || 'Field Ops',
                 discordUserId: discordId
             });
         } else {
             // Bind discordId and update tier
-        userProfile.discordUserId = discordId;
-        userProfile.tier = tokenRecord.assignedTier;
-    }
+            userProfile.discordUserId = discordId;
+            userProfile.tier = tokenRecord.assignedTier;
+            userProfile.unitScope = tokenRecord.scope || userProfile.unitScope;
+        }
 
     // 5. Flip token status
     tokenRecord.isUsed = true;
@@ -477,7 +484,8 @@ app.post('/api/v1/link-discord', async (req, res) => {
 
     return res.status(200).json({ 
         username: userProfile.username, 
-        newTier: userProfile.tier 
+        newTier: userProfile.tier,
+        temporaryPassword: generatedPassword
     });
 
     } catch (err) {
@@ -1199,6 +1207,43 @@ app.get('/api/outfit-details/:outfitId', protectTier(2), async (req, res) => {
 app.post('/bulk-outfits', protectTier(2), async (req, res) => {
     // Keeping for backward compatibility but client will now use /outfits/:username in a loop for progress bars
     res.status(410).json({ message: "Route deprecated. Use sequential uplink for progress tracking." });
+});
+
+// Bot Search Route
+app.post('/api/v1/bot/search', async (req, res) => {
+    const authHeader = req.header('Authorization');
+    if (!authHeader || authHeader !== `Bearer ${process.env.INTERNAL_BOT_API_KEY}`) {
+        return res.status(401).json({ error: 'Unauthorized: Invalid internal API key.' });
+    }
+
+    const { type, roblox_username, scope, group_id } = req.body;
+
+    try {
+        let results = [];
+        if (type === 'personnel') {
+            if (!roblox_username) return res.status(400).json({ error: 'Missing roblox_username' });
+            // Since we don't have deep intel without auth, we simulate a db search for local operatives
+            // But we filter by scope!
+            let filter = { username: new RegExp(roblox_username, 'i') };
+            if (scope && scope !== 'ALL') filter.unitScope = scope;
+            
+            const users = await User.find(filter).select('-password');
+            results = users.map(u => ({ username: u.username, tier: u.tier, scope: u.unitScope }));
+        } else if (type === 'group intel') {
+            if (!group_id && !scope) return res.status(400).json({ error: 'Missing group_id or scope' });
+            let filter = {};
+            if (group_id) filter.groupId = group_id.toString();
+            if (scope && scope !== 'ALL') filter.scope = scope;
+            
+            const divs = await Division.find(filter);
+            results = divs.map(d => ({ groupName: d.groupName, groupId: d.groupId, isAllied: d.isAllied, scope: d.scope }));
+        }
+
+        return res.json({ success: true, type, results });
+    } catch (err) {
+        console.error('[BOT SEARCH ERROR]', err);
+        return res.status(500).json({ error: 'Internal server error during search' });
+    }
 });
 
 // Create User (Register)

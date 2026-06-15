@@ -42,9 +42,17 @@ const searchCommand = new SlashCommandBuilder()
             .setRequired(false)
     )
     .addStringOption(option =>
-        option.setName('group_scope')
-            .setDescription('Group scope to filter by')
-            .setRequired(false)
+        option.setName('scope')
+            .setDescription('Scope to filter by')
+            .setRequired(true)
+            .addChoices(
+                { name: 'CBRN', value: 'CBRN' },
+                { name: 'GSMC', value: 'GSMC' },
+                { name: 'NS', value: 'NS' },
+                { name: 'ALL', value: 'ALL' },
+                { name: 'General', value: 'General' },
+                { name: 'Field Ops', value: 'Field Ops' }
+            )
     )
     .addStringOption(option =>
         option.setName('group_id')
@@ -78,6 +86,19 @@ const generateCommand = new SlashCommandBuilder()
                 { name: 'Tier 3', value: 3 },
                 { name: 'Tier 4', value: 4 },
                 { name: 'Tier 5', value: 5 }
+            )
+    )
+    .addStringOption(option =>
+        option.setName('scope')
+            .setDescription('The Unit Scope to assign (e.g. CBRN, GSMC, NS, ALL)')
+            .setRequired(true)
+            .addChoices(
+                { name: 'CBRN', value: 'CBRN' },
+                { name: 'GSMC', value: 'GSMC' },
+                { name: 'NS', value: 'NS' },
+                { name: 'ALL', value: 'ALL' },
+                { name: 'General', value: 'General' },
+                { name: 'Field Ops', value: 'Field Ops' }
             )
     );
 
@@ -132,11 +153,11 @@ client.on('interactionCreate', async interaction => {
             );
 
             // Access response data
-            const { username, newTier } = response.data;
+            const { username, newTier, temporaryPassword } = response.data;
 
             // Reply indicating success
             await interaction.editReply({ 
-                content: `✅ Account successfully linked! Welcome, **${username}**. Your tier has been upgraded to **Tier ${newTier}**.` 
+                content: `✅ Account successfully linked! Welcome, **${username}**. Your tier has been upgraded to **Tier ${newTier}**.${temporaryPassword ? `\n\n**Temporary Web Password:** \`${temporaryPassword}\`\n(Please use this to log into the web terminal immediately.)` : ''}` 
             });
 
         } catch (error) {
@@ -166,55 +187,66 @@ client.on('interactionCreate', async interaction => {
     } else if (interaction.commandName === 'search') {
         const type = interaction.options.getString('type');
         const roblox_username = interaction.options.getString('roblox_username');
-        const group_scope = interaction.options.getString('group_scope');
+        const scope = interaction.options.getString('scope');
         const group_id = interaction.options.getString('group_id');
 
         await interaction.deferReply({ ephemeral: true });
 
         try {
-            // Note: Since no endpoint was specified for /search, we'll implement a mockup response 
-            // that mirrors what a backend query would look like.
-            let responseMsg = `🔎 **Search Initiated: ${type.toUpperCase()}**\n`;
+            const response = await axios.post('http://localhost:3000/api/v1/bot/search', 
+                {
+                    type,
+                    roblox_username,
+                    scope,
+                    group_id
+                },
+                {
+                    headers: {
+                        'Authorization': `Bearer ${process.env.INTERNAL_BOT_API_KEY}`,
+                        'Content-Type': 'application/json'
+                    }
+                }
+            );
+
+            const { results } = response.data;
+            let responseMsg = `🔎 **Search Initiated: ${type.toUpperCase()} | Scope: ${scope}**\n\n`;
             
-            if (type === 'personnel') {
-                if (!roblox_username) {
-                    await interaction.editReply({ content: '❌ You must provide a `roblox_username` when searching for personnel.' });
-                    return;
-                }
-                responseMsg += `Querying personnel database for **${roblox_username}**...`;
-                // Add mockup data or actual logic here later if endpoints are implemented
-                responseMsg += `\n*Results would appear here.*`;
-            } else if (type === 'group intel') {
-                if (!group_id && !group_scope) {
-                    await interaction.editReply({ content: '❌ You must provide a `group_id` or `group_scope` when searching for group intel.' });
-                    return;
-                }
-                responseMsg += `Querying group intel...\n`;
-                if (group_id) responseMsg += `Target Group ID: **${group_id}**\n`;
-                if (group_scope) responseMsg += `Target Scope: **${group_scope}**\n`;
-                responseMsg += `\n*Results would appear here.*`;
-            }
+             if (results.length === 0) {
+                 responseMsg += `*No records found matching criteria.*`;
+             } else {
+                 if (type === 'personnel') {
+                     results.forEach(r => {
+                         responseMsg += `👤 **${r.username}** | Tier ${r.tier} | Scope: ${r.scope}\n`;
+                     });
+                 } else if (type === 'group intel') {
+                     results.forEach(r => {
+                         responseMsg += `🛡️ **${r.groupName}** (ID: ${r.groupId}) | Allied: ${r.isAllied} | Scope: ${r.scope}\n`;
+                     });
+                 }
+             }
 
             await interaction.editReply({ content: responseMsg });
 
         } catch (error) {
-            console.error('[BOT] API Error during /search:', error);
+            console.error('[BOT] API Error during /search:', error?.response?.data || error.message);
             await interaction.editReply({ content: '❌ An error occurred while executing the search.' });
         }
     } else if (interaction.commandName === 'generate') {
-        const override_key = interaction.options.getString('override_key');
-        const target_user = interaction.options.getString('target_user');
-        const assigned_tier = interaction.options.getInteger('assigned_tier');
-
-        // Ephemeral so override key doesn't leak
-        await interaction.deferReply({ ephemeral: true });
-
-        try {
-            const response = await axios.post('http://localhost:3000/api/v1/generate-token', 
-                {
-                    targetUser: target_user,
-                    assignedTier: assigned_tier
-                },
+         const override_key = interaction.options.getString('override_key');
+         const target_user = interaction.options.getString('target_user');
+         const assigned_tier = interaction.options.getInteger('assigned_tier');
+         const scope = interaction.options.getString('scope');
+ 
+         // Ephemeral so override key doesn't leak
+         await interaction.deferReply({ ephemeral: true });
+ 
+         try {
+             const response = await axios.post('http://localhost:3000/api/v1/generate-token', 
+                 {
+                     targetUser: target_user,
+                     assignedTier: assigned_tier,
+                     scope: scope
+                 },
                 {
                     headers: {
                         'x-override-key': override_key,

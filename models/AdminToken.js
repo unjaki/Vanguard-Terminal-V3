@@ -14,6 +14,11 @@ const AdminTokenSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    scope: {
+        type: String,
+        required: true,
+        default: 'General'
+    },
     isUsed: {
         type: Boolean,
         default: false
