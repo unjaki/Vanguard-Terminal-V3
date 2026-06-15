@@ -193,37 +193,61 @@ client.on('interactionCreate', async interaction => {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
         try {
-            const response = await axios.post('http://localhost:3000/api/v1/bot/search', 
-                {
-                    type,
-                    roblox_username,
-                    scope,
-                    group_id
-                },
-                {
-                    headers: {
-                        'Authorization': `Bearer ${process.env.INTERNAL_BOT_API_KEY}`,
-                        'Content-Type': 'application/json'
+            let responseMsg = `🔎 **Search Initiated: ${type.toUpperCase()} | Scope: ${scope}**\n\n`;
+
+            const SCOPES = {
+                'GSMC': '288142915',
+                'CBRN': '423217030',
+                'NS': '1008942731',
+                'ALL': '288142915', // fallback to GSMC for ALL
+                'General': '288142915',
+                'Field Ops': '288142915'
+            };
+
+            const targetGroupId = group_id || SCOPES[scope] || '288142915';
+
+            if (type === 'personnel') {
+                if (!roblox_username) {
+                    await interaction.editReply({ content: '❌ You must provide a `roblox_username` when searching for personnel.' });
+                    return;
+                }
+                
+                try {
+                    const response = await axios.get(`http://localhost:3000/verify-member/${targetGroupId}/${encodeURIComponent(roblox_username)}`, {
+                        headers: { 'Authorization': `Bearer ${process.env.INTERNAL_BOT_API_KEY}` }
+                    });
+                    
+                    const data = response.data;
+                    responseMsg += `👤 **${data.officer}** | Rank: ${data.rank || 'N/A'}\n`;
+                    responseMsg += `Status: ${data.status} | Sync: ${data.syncEnabled ? 'ENABLED' : 'DISABLED'}`;
+                } catch (err) {
+                    if (err.response && err.response.status === 404) {
+                        responseMsg += `*Personnel not found in target unit or name typo.*`;
+                    } else {
+                        throw err;
                     }
                 }
-            );
-
-            const { results } = response.data;
-            let responseMsg = `🔎 **Search Initiated: ${type.toUpperCase()} | Scope: ${scope}**\n\n`;
-            
-             if (results.length === 0) {
-                 responseMsg += `*No records found matching criteria.*`;
-             } else {
-                 if (type === 'personnel') {
-                     results.forEach(r => {
-                         responseMsg += `👤 **${r.username}** | Tier ${r.tier} | Scope: ${r.scope}\n`;
-                     });
-                 } else if (type === 'group intel') {
-                     results.forEach(r => {
-                         responseMsg += `🛡️ **${r.groupName}** (ID: ${r.groupId}) | Allied: ${r.isAllied} | Scope: ${r.scope}\n`;
-                     });
-                 }
-             }
+            } else if (type === 'group intel') {
+                try {
+                    const response = await axios.get(`http://localhost:3000/group-info/${targetGroupId}`, {
+                        headers: { 
+                            'Authorization': `Bearer ${process.env.INTERNAL_BOT_API_KEY}`,
+                            'x-group-scope': scope
+                        }
+                    });
+                    
+                    const data = response.data;
+                    responseMsg += `🛡️ **${data.name}** (ID: ${data.id})\n`;
+                    responseMsg += `Owner: ${data.owner?.username || 'UNKNOWN'}\n`;
+                    responseMsg += `Members: ${data.memberCount || 0}\n`;
+                } catch (err) {
+                    if (err.response && err.response.status === 404) {
+                        responseMsg += `*Group not found or uplink error.*`;
+                    } else {
+                        throw err;
+                    }
+                }
+            }
 
             await interaction.editReply({ content: responseMsg });
 
