@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, ApplicationIntegrationType, InteractionContextType } = require('discord.js');
+const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, ApplicationIntegrationType, InteractionContextType, MessageFlags } = require('discord.js');
 const axios = require('axios');
 require('dotenv').config();
 
@@ -37,11 +37,6 @@ const searchCommand = new SlashCommandBuilder()
             )
     )
     .addStringOption(option =>
-        option.setName('roblox_username')
-            .setDescription('Roblox username to search (for personnel)')
-            .setRequired(false)
-    )
-    .addStringOption(option =>
         option.setName('scope')
             .setDescription('Scope to filter by')
             .setRequired(true)
@@ -53,6 +48,11 @@ const searchCommand = new SlashCommandBuilder()
                 { name: 'General', value: 'General' },
                 { name: 'Field Ops', value: 'Field Ops' }
             )
+    )
+    .addStringOption(option =>
+        option.setName('roblox_username')
+            .setDescription('Roblox username to search (for personnel)')
+            .setRequired(false)
     )
     .addStringOption(option =>
         option.setName('group_id')
@@ -135,7 +135,7 @@ client.on('interactionCreate', async interaction => {
 
         // Immediately defer the reply to prevent the 3-second Discord timeout
         // Make it ephemeral unless 'visible' is set to true
-        await interaction.deferReply({ ephemeral: !visible });
+        await interaction.deferReply({ flags: !visible ? MessageFlags.Ephemeral : undefined });
 
         try {
             // Make internal API call to link Discord account
@@ -190,7 +190,7 @@ client.on('interactionCreate', async interaction => {
         const scope = interaction.options.getString('scope');
         const group_id = interaction.options.getString('group_id');
 
-        await interaction.deferReply({ ephemeral: true });
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
         try {
             const response = await axios.post('http://localhost:3000/api/v1/bot/search', 
@@ -238,7 +238,7 @@ client.on('interactionCreate', async interaction => {
          const scope = interaction.options.getString('scope');
  
          // Ephemeral so override key doesn't leak
-         await interaction.deferReply({ ephemeral: true });
+         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
  
          try {
              const response = await axios.post('http://localhost:3000/api/v1/generate-token', 
