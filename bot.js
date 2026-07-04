@@ -14,48 +14,91 @@ const sheets = google.sheets({ version: 'v4', auth });
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
-let lastProcessedRow = 0;
 
-async function pollPilotSheet() {
-    if (!process.env.GOOGLE_SHEET_ID_PILOT || !process.env.ADMIN_DISCORD_ID || !process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || !process.env.GOOGLE_PRIVATE_KEY) {
-        return;
+const fsMod = require('fs');
+let lastProcessedRow = { pilot: 0, gsmc: 0 };
+
+function getSubscribers(formType) {
+    const subsFile = 'subscriptions.json';
+    if (fsMod.existsSync(subsFile)) {
+        try {
+            const subs = JSON.parse(fsMod.readFileSync(subsFile, 'utf8'));
+            if (subs[formType] && subs[formType].length > 0) {
+                return subs[formType];
+            }
+        } catch(e) {}
     }
+    return process.env.ADMIN_DISCORD_ID ? [process.env.ADMIN_DISCORD_ID] : [];
+}
+
+async function pollSheet(type, spreadsheetId) {
+    if (!spreadsheetId || !process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || !process.env.GOOGLE_PRIVATE_KEY) return;
     
     try {
         const response = await sheets.spreadsheets.values.get({
-            spreadsheetId: process.env.GOOGLE_SHEET_ID_PILOT,
+            spreadsheetId: spreadsheetId,
             range: 'A:Z'
         });
         
         const rows = response.data.values;
         if (!rows || rows.length === 0) return;
         
-        if (lastProcessedRow === 0) {
-            lastProcessedRow = rows.length;
+        if (lastProcessedRow[type] === 0) {
+            lastProcessedRow[type] = rows.length;
             return;
         }
         
-        if (rows.length > lastProcessedRow) {
-            const newRows = rows.slice(lastProcessedRow);
+        if (rows.length > lastProcessedRow[type]) {
+            const newRows = rows.slice(lastProcessedRow[type]);
             const headers = rows[0] || [];
             
-            const user = await client.users.fetch(process.env.ADMIN_DISCORD_ID);
+            const subscribers = getSubscribers(type);
             
             for (const row of newRows) {
-                let msg = '🚨 **New Pilot Form Response** 🚨\n\n';
+                let msg = `🚨 **New ${type.toUpperCase()} Form Response** 🚨\n\n`;
                 for (let i = 0; i < headers.length; i++) {
                     msg += '**' + headers[i] + '**: ' + (row[i] || 'N/A') + '\n';
                 }
                 
-                await user.send(msg.substring(0, 2000)).catch(err => console.error('[BOT] Failed to DM owner', err));
+                for (const subId of subscribers) {
+                    try {
+                        const user = await client.users.fetch(subId);
+                        if (user) await user.send(msg.substring(0, 2000));
+                    } catch(e) {
+                        console.error(`[BOT] Failed to DM ${subId}`, e.message);
+                    }
+                }
             }
             
-            lastProcessedRow = rows.length;
+            lastProcessedRow[type] = rows.length;
         }
     } catch (err) {
-        console.error('[BOT] Error polling Google Sheet:', err.message);
+        console.error(`[BOT] Error polling ${type} Google Sheet:`, err.message);
     }
 }
+
+async function pollAllSheets() {
+    await pollSheet('pilot', process.env.GOOGLE_SHEET_ID_PILOT);
+    await pollSheet('gsmc', process.env.GOOGLE_SHEET_ID_GSMC);
+}
+
+
+
+// The /subscribe command definition
+const subscribeCommand = new SlashCommandBuilder()
+    .setName('subscribe')
+    .setDescription('Toggle your subscription to new form responses.')
+    .setIntegrationTypes(ApplicationIntegrationType.GuildInstall, ApplicationIntegrationType.UserInstall)
+    .setContexts(InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel)
+    .addStringOption(option =>
+        option.setName('form')
+            .setDescription('Which form to subscribe/unsubscribe to')
+            .setRequired(true)
+            .addChoices(
+                { name: 'Pilot', value: 'pilot' },
+                { name: 'GSMC', value: 'gsmc' }
+            )
+    );
 
 // The /link command definition
 const linkCommand = new SlashCommandBuilder()
@@ -178,15 +221,15 @@ const pullResponsesCommand = new SlashCommandBuilder()
 client.once('ready', async () => {
     console.log(`[BOT] Logged in as ${client.user.tag}!`);
 
-    setInterval(pollPilotSheet, 30000);
-    pollPilotSheet();
+    setInterval(pollAllSheets, 30000);
+    pollAllSheets();
 
     // Register slash commands (Global registration)
     try {
         const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_BOT_TOKEN);
         console.log('[BOT] Started refreshing application (/) commands.');
 
-        const commands = [linkCommand.toJSON(), searchCommand.toJSON(), generateCommand.toJSON(), pullResponsesCommand.toJSON()];
+        const commands = [linkCommand.toJSON(), searchCommand.toJSON(), generateCommand.toJSON(), pullResponsesCommand.toJSON(), subscribeCommand.toJSON()];
 
         // Ensure DISCORD_CLIENT_ID is provided, fallback to client.user.id
         const clientId = process.env.DISCORD_CLIENT_ID || client.user.id;
@@ -384,7 +427,62 @@ client.on('interactionCreate', async interaction => {
                 await interaction.editReply({ content: '❌ Could not contact the server.' });
             }
         }
-    } else if (interaction.commandName === 'pull_responses') {
+    
+    } else if (interaction.commandName === 'subscribe') {
+        const formType = interaction.options.getString('form');
+        const discordId = interaction.user.id;
+        
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+        
+        try {
+            // Check registration gate
+            const userRes = await axios.get(`http://localhost:3000/api/v1/bot/user/${discordId}`, {
+                headers: { 'Authorization': `Bearer ${process.env.INTERNAL_BOT_API_KEY}` }
+            });
+            
+            const userData = userRes.data;
+            if (!userData) {
+                return await interaction.editReply({ content: '❌ Registration Gate Failed: You are not linked in the internal database.' });
+            }
+            
+            // Tier gate check (Tier >= 4 or Admin)
+            if (userData.tier < 4 && discordId !== process.env.ADMIN_DISCORD_ID) {
+                return await interaction.editReply({ content: `❌ Tier Gate Failed: Required Tier 4, your current tier is ${userData.tier}.` });
+            }
+            
+            // Read/Edit text file
+            const subsFile = 'subscriptions.json';
+            let subs = { pilot: [], gsmc: [] };
+            if (fsMod.existsSync(subsFile)) {
+                try {
+                    subs = JSON.parse(fsMod.readFileSync(subsFile, 'utf8'));
+                } catch(e) {}
+            }
+            
+            if (!subs[formType]) subs[formType] = [];
+            
+            let actionStr = '';
+            if (subs[formType].includes(discordId)) {
+                subs[formType] = subs[formType].filter(id => id !== discordId);
+                actionStr = 'Unsubscribed from';
+            } else {
+                subs[formType].push(discordId);
+                actionStr = 'Subscribed to';
+            }
+            
+            fsMod.writeFileSync(subsFile, JSON.stringify(subs, null, 2));
+            
+            await interaction.editReply({ content: `✅ ${actionStr} ${formType.toUpperCase()} notifications successfully.` });
+            
+        } catch (error) {
+            console.error('[BOT] Error in /subscribe:', error?.response?.data || error.message);
+            if (error.response && error.response.status === 404) {
+                await interaction.editReply({ content: '❌ Registration Gate Failed: You are not linked in the internal database.' });
+            } else {
+                await interaction.editReply({ content: '❌ An error occurred processing your subscription.' });
+            }
+        }
+} else if (interaction.commandName === 'pull_responses') {
         const type = interaction.options.getString('type');
         const newest = interaction.options.getBoolean('newest');
 
