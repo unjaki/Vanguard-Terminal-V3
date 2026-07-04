@@ -944,9 +944,9 @@
 
                     <div style="margin-top: 15px; background: #050505; border: 1px solid #222; border-radius: 4px; padding: 10px; position: relative;">
                         <div id="nethack-container" style="width: 100%; height: 650px; display: flex; align-items: center; justify-content: center; background: #000; overflow: hidden; border-radius: 2px;">
-                            <div style="text-align: center; color: #444; font-family: monospace; font-size: 0.75rem; letter-spacing: 2px; padding: 100px 0;">
-                                <i data-lucide="gamepad-2" style="width: 48px; height: 48px; margin-bottom: 10px; opacity: 0.2; display: block; margin: 0 auto 10px auto;"></i>
-                                SIMULATION OFFLINE: INITIATE NETHACK MODULE
+                            <div onclick="startNethackSimulator()" style="text-align: center; color: var(--neon); font-family: monospace; font-size: 0.75rem; letter-spacing: 2px; padding: 100px 0; cursor: pointer; transition: all 0.2s ease;" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
+                                <i data-lucide="gamepad-2" style="width: 48px; height: 48px; margin-bottom: 10px; opacity: 0.8; display: block; margin: 0 auto 10px auto;"></i>
+                                [ SIMULATION OFFLINE: CLICK TO INITIATE NETHACK MODULE ]
                             </div>
                         </div>
                     </div>
@@ -971,9 +971,9 @@
 
                     <div style="margin-top: 15px; background: #050505; border: 1px solid #222; border-radius: 4px; padding: 10px; position: relative;">
                         <div id="tetris-container" style="width: 100%; height: 650px; display: flex; align-items: center; justify-content: center; background: #000; overflow: hidden; border-radius: 2px;">
-                            <div style="text-align: center; color: #444; font-family: monospace; font-size: 0.75rem; letter-spacing: 2px; padding: 100px 0;">
-                                <i data-lucide="gamepad-2" style="width: 48px; height: 48px; margin-bottom: 10px; opacity: 0.2; display: block; margin: 0 auto 10px auto;"></i>
-                                SIMULATION OFFLINE: INITIATE TETRIS MODULE
+                            <div onclick="startTetrisSimulator()" style="text-align: center; color: var(--neon); font-family: monospace; font-size: 0.75rem; letter-spacing: 2px; padding: 100px 0; cursor: pointer; transition: all 0.2s ease;" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
+                                <i data-lucide="gamepad-2" style="width: 48px; height: 48px; margin-bottom: 10px; opacity: 0.8; display: block; margin: 0 auto 10px auto;"></i>
+                                [ SIMULATION OFFLINE: CLICK TO INITIATE TETRIS MODULE ]
                             </div>
                         </div>
                     </div>
@@ -998,9 +998,9 @@
 
                     <div style="margin-top: 15px; background: #050505; border: 1px solid #222; border-radius: 4px; padding: 10px; position: relative;">
                         <div id="jsdos-container" style="width: 100%; height: 650px; display: flex; align-items: center; justify-content: center; background: #000; overflow: hidden; border-radius: 2px;">
-                            <div style="text-align: center; color: #444; font-family: monospace; font-size: 0.75rem; letter-spacing: 2px; padding: 100px 0;">
-                                <i data-lucide="gamepad-2" style="width: 48px; height: 48px; margin-bottom: 10px; opacity: 0.2; display: block; margin: 0 auto 10px auto;"></i>
-                                SIMULATION OFFLINE: INITIATE TACTICAL MODULE
+                            <div onclick="startDoomSimulator()" style="text-align: center; color: var(--neon); font-family: monospace; font-size: 0.75rem; letter-spacing: 2px; padding: 100px 0; cursor: pointer; transition: all 0.2s ease;" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
+                                <i data-lucide="gamepad-2" style="width: 48px; height: 48px; margin-bottom: 10px; opacity: 0.8; display: block; margin: 0 auto 10px auto;"></i>
+                                [ SIMULATION OFFLINE: CLICK TO INITIATE TACTICAL MODULE ]
                             </div>
                         </div>
                     </div>
@@ -3239,9 +3239,9 @@ ${data.groups && data.groups.length > 0
             const container = document.getElementById("jsdos-container");
             if (container) {
                 container.innerHTML = `
-                    <div style="text-align: center; color: #444; font-family: monospace; font-size: 0.75rem; letter-spacing: 2px; padding: 100px 0;">
-                        <i data-lucide="gamepad-2" style="width: 48px; height: 48px; margin-bottom: 10px; opacity: 0.2; display: block; margin: 0 auto 10px auto;"></i>
-                        SIMULATION OFFLINE: INITIATE TACTICAL MODULE
+                    <div onclick="startDoomSimulator()" style="text-align: center; color: var(--neon); font-family: monospace; font-size: 0.75rem; letter-spacing: 2px; padding: 100px 0; cursor: pointer; transition: all 0.2s ease;" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
+                        <i data-lucide="gamepad-2" style="width: 48px; height: 48px; margin-bottom: 10px; opacity: 0.8; display: block; margin: 0 auto 10px auto;"></i>
+                        [ SIMULATION OFFLINE: CLICK TO INITIATE TACTICAL MODULE ]
                     </div>
                 `;
                 refreshIcons();
@@ -3338,9 +3338,9 @@ ${data.groups && data.groups.length > 0
             const container = document.getElementById("tetris-container");
             if (container) {
                 container.innerHTML = `
-                    <div style="text-align: center; color: #444; font-family: monospace; font-size: 0.75rem; letter-spacing: 2px; padding: 100px 0;">
-                        <i data-lucide="gamepad-2" style="width: 48px; height: 48px; margin-bottom: 10px; opacity: 0.2; display: block; margin: 0 auto 10px auto;"></i>
-                        SIMULATION OFFLINE: INITIATE TETRIS MODULE
+                    <div onclick="startTetrisSimulator()" style="text-align: center; color: var(--neon); font-family: monospace; font-size: 0.75rem; letter-spacing: 2px; padding: 100px 0; cursor: pointer; transition: all 0.2s ease;" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
+                        <i data-lucide="gamepad-2" style="width: 48px; height: 48px; margin-bottom: 10px; opacity: 0.8; display: block; margin: 0 auto 10px auto;"></i>
+                        [ SIMULATION OFFLINE: CLICK TO INITIATE TETRIS MODULE ]
                     </div>
                 `;
                 refreshIcons();
@@ -3439,233 +3439,15 @@ ${data.groups && data.groups.length > 0
             const container = document.getElementById("nethack-container");
             if (container) {
                 container.innerHTML = `
-                    <div style="text-align: center; color: #444; font-family: monospace; font-size: 0.75rem; letter-spacing: 2px; padding: 100px 0;">
-                        <i data-lucide="gamepad-2" style="width: 48px; height: 48px; margin-bottom: 10px; opacity: 0.2; display: block; margin: 0 auto 10px auto;"></i>
-                        SIMULATION OFFLINE: INITIATE NETHACK MODULE
+                    <div onclick="startNethackSimulator()" style="text-align: center; color: var(--neon); font-family: monospace; font-size: 0.75rem; letter-spacing: 2px; padding: 100px 0; cursor: pointer; transition: all 0.2s ease;" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
+                        <i data-lucide="gamepad-2" style="width: 48px; height: 48px; margin-bottom: 10px; opacity: 0.8; display: block; margin: 0 auto 10px auto;"></i>
+                        [ SIMULATION OFFLINE: CLICK TO INITIATE NETHACK MODULE ]
                     </div>
                 `;
                 refreshIcons();
             }
         }
 
-        let breachMatrix = [];
-        const breachHexPool = ['BD', '55', 'E9', '1C', 'FF', '7A'];
-        let breachTargetSequence = [];
-        let breachUserBuffer = [];
-        const breachMaxBuffer = 6;
-        let breachActiveDirection = 'row'; // 'row' or 'col'
-        let breachActiveIndex = 0; // index of selectable row/col
-        let breachVisitedCells = new Set(); // format: "row-col"
-        let breachTimerLeft = 45;
-        let breachTimerInterval = null;
-        let breachIsOver = false;
-
-        function resetBreachProtocolGame() {
-            clearInterval(breachTimerInterval);
-            breachIsOver = false;
-            breachUserBuffer = [];
-            breachVisitedCells.clear();
-            breachActiveDirection = 'row';
-            breachActiveIndex = 0;
-            breachTimerLeft = 45.0;
-
-            document.getElementById('breach-feedback-msg').innerText = "CALIBRATING CODE INTEGRITY GRID...";
-            document.getElementById('breach-feedback-msg').style.color = '#888';
-            document.getElementById('breach-timer').innerText = `TIME REMAINING: 45.0s`;
-
-            // Step 1: Generate 5x5 Matrix
-            breachMatrix = [];
-            for (let r = 0; r < 5; r++) {
-                const row = [];
-                for (let c = 0; c < 5; c++) {
-                    const rnd = breachHexPool[Math.floor(Math.random() * breachHexPool.length)];
-                    row.push(rnd);
-                }
-                breachMatrix.push(row);
-            }
-
-            // Step 2: Traverse to build a 100% solvable 3-step sequence
-            const col1 = Math.floor(Math.random() * 5);
-            const row2 = Math.floor(Math.random() * 5);
-            const col3 = Math.floor(Math.random() * 5);
-
-            breachTargetSequence = [
-                breachMatrix[0][col1],
-                breachMatrix[row2][col1],
-                breachMatrix[row2][col3]
-            ];
-
-            // Render Target Board
-            document.getElementById('breach-target-seq').innerText = breachTargetSequence.join(' ');
-
-            // Start Timer Loops
-            breachTimerInterval = setInterval(() => {
-                if (breachIsOver) return;
-                breachTimerLeft -= 0.1;
-                if (breachTimerLeft <= 0) {
-                    breachTimerLeft = 0;
-                    handleBreachGameOver(false, "HANDSHAKE TIMEOUT: CONNECTION EXPIRED.");
-                }
-                document.getElementById('breach-timer').innerText = `TIME REMAINING: ${breachTimerLeft.toFixed(1)}s`;
-            }, 100);
-
-            renderBreachMatrixHTML();
-            updateBreachBufferDisplay();
-        }
-
-        function renderBreachMatrixHTML() {
-            const gridContainer = document.getElementById('breach-matrix-grid');
-            gridContainer.innerHTML = '';
-
-            for (let r = 0; r < 5; r++) {
-                for (let c = 0; c < 5; c++) {
-                    const val = breachMatrix[r][c];
-                    const cellKey = `${r}-${c}`;
-                    const cellDiv = document.createElement('div');
-                    
-                    cellDiv.innerText = val;
-                    cellDiv.style.padding = '12px 0';
-                    cellDiv.style.textAlign = 'center';
-                    cellDiv.style.fontFamily = 'monospace';
-                    cellDiv.style.fontWeight = 'bold';
-                    cellDiv.style.fontSize = '0.85rem';
-                    cellDiv.style.cursor = 'pointer';
-                    cellDiv.style.border = '1px solid #1a1a1a';
-                    cellDiv.style.borderRadius = '3px';
-                    cellDiv.style.transition = '0.15s ease';
-
-                    const isVisited = breachVisitedCells.has(cellKey);
-                    
-                    // Highlight row/column active indicators
-                    let isSelectable = false;
-                    if (!isVisited && !breachIsOver) {
-                        if (breachActiveDirection === 'row' && r === breachActiveIndex) {
-                            isSelectable = true;
-                        } else if (breachActiveDirection === 'col' && c === breachActiveIndex) {
-                            isSelectable = true;
-                        }
-                    }
-
-                    if (isVisited) {
-                        cellDiv.style.background = '#0a0a0a';
-                        cellDiv.style.color = '#333';
-                        cellDiv.style.border = '1px solid #111';
-                        cellDiv.style.cursor = 'not-allowed';
-                    } else if (isSelectable) {
-                        cellDiv.style.background = 'rgba(0, 255, 136, 0.05)';
-                        cellDiv.style.color = 'var(--neon)';
-                        cellDiv.style.borderColor = 'rgba(0, 255, 136, 0.3)';
-                        
-                        cellDiv.onmouseenter = () => {
-                            cellDiv.style.background = 'rgba(0, 255, 136, 0.15)';
-                            cellDiv.style.borderColor = 'var(--neon)';
-                        };
-                        cellDiv.onmouseleave = () => {
-                            cellDiv.style.background = 'rgba(0, 255, 136, 0.05)';
-                            cellDiv.style.borderColor = 'rgba(0, 255, 136, 0.3)';
-                        };
-                        
-                        cellDiv.onclick = () => handleBreachClick(r, c, val);
-                    } else {
-                        cellDiv.style.background = '#050505';
-                        cellDiv.style.color = '#555';
-                        cellDiv.style.cursor = 'not-allowed';
-                    }
-
-                    gridContainer.appendChild(cellDiv);
-                }
-            }
-
-            // Direction text
-            const dirLabel = document.getElementById('breach-direction-indicator');
-            if (breachActiveDirection === 'row') {
-                dirLabel.innerText = `ACTIVE ROUTE: SECURING ROW ${breachActiveIndex + 1}`;
-                dirLabel.style.color = 'var(--neon)';
-            } else {
-                dirLabel.innerText = `ACTIVE ROUTE: SECURING COLUMN ${breachActiveIndex + 1}`;
-                dirLabel.style.color = 'var(--warning)';
-            }
-        }
-
-        function handleBreachClick(row, col, value) {
-            if (breachIsOver) return;
-
-            playSynthSound(580, 'sine', 0.08);
-
-            const cellKey = `${row}-${col}`;
-            breachVisitedCells.add(cellKey);
-            breachUserBuffer.push(value);
-
-            // Shift alternate axis
-            if (breachActiveDirection === 'row') {
-                breachActiveDirection = 'col';
-                breachActiveIndex = col;
-            } else {
-                breachActiveDirection = 'row';
-                breachActiveIndex = row;
-            }
-
-            updateBreachBufferDisplay();
-            checkBreachWinConditions();
-            
-            if (!breachIsOver) {
-                renderBreachMatrixHTML();
-            }
-        }
-
-        function updateBreachBufferDisplay() {
-            const display = document.getElementById('breach-buffer-display');
-            let content = '[ ';
-            for (let i = 0; i < breachMaxBuffer; i++) {
-                if (i < breachUserBuffer.length) {
-                    content += `<span style="color:var(--neon)">${breachUserBuffer[i]}</span> `;
-                } else {
-                    content += '_ ';
-                }
-            }
-            content += ']';
-            display.innerHTML = content;
-        }
-
-        function checkBreachWinConditions() {
-            // Check if user sequence matches target
-            const sub = breachTargetSequence.join(' ');
-            const source = breachUserBuffer.join(' ');
-
-            if (source.includes(sub)) {
-                handleBreachGameOver(true, "DECRYPTION SUCCESS: MATRIX ACCESS GRANTED!");
-                return;
-            }
-
-            if (breachUserBuffer.length >= breachMaxBuffer) {
-                handleBreachGameOver(false, "DECRYPTION FAILURE: MOVE CACHE EXHAUSTED.");
-            }
-        }
-
-        function handleBreachGameOver(isWin, message) {
-            breachIsOver = true;
-            clearInterval(breachTimerInterval);
-            
-            const feedback = document.getElementById('breach-feedback-msg');
-            feedback.innerText = message;
-            feedback.style.color = isWin ? 'var(--neon)' : 'var(--danger)';
-
-            if (isWin) {
-                triggerSuccessBeep();
-                // Add positive effect notification
-                showToast("Override completed: Security Breach Successful!", false);
-            } else {
-                triggerFailureBuzzer();
-                showToast("Access Denied: Uplink connection dropped.", true);
-            }
-
-            renderBreachMatrixHTML();
-        }
-
-        /* 2. PACKET INTERCEPTOR GAME LOGIC - Replaced by tetris Simulator above */
-        function startPacketGame() {
-            startTetrisSimulator();
-        }
 
         function stopPacketGame() {
             stopTetrisSimulator();

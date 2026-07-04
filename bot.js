@@ -1,8 +1,61 @@
-const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, ApplicationIntegrationType, InteractionContextType, MessageFlags } = require('discord.js');
+const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, ApplicationIntegrationType, InteractionContextType, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
 const axios = require('axios');
 require('dotenv').config();
+const { google } = require('googleapis');
+
+const auth = new google.auth.GoogleAuth({
+    credentials: {
+        client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+        private_key: (process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n')
+    },
+    scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly']
+});
+const sheets = google.sheets({ version: 'v4', auth });
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+
+let lastProcessedRow = 0;
+
+async function pollPilotSheet() {
+    if (!process.env.GOOGLE_SHEET_ID_PILOT || !process.env.ADMIN_DISCORD_ID || !process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || !process.env.GOOGLE_PRIVATE_KEY) {
+        return;
+    }
+    
+    try {
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: process.env.GOOGLE_SHEET_ID_PILOT,
+            range: 'A:Z'
+        });
+        
+        const rows = response.data.values;
+        if (!rows || rows.length === 0) return;
+        
+        if (lastProcessedRow === 0) {
+            lastProcessedRow = rows.length;
+            return;
+        }
+        
+        if (rows.length > lastProcessedRow) {
+            const newRows = rows.slice(lastProcessedRow);
+            const headers = rows[0] || [];
+            
+            const user = await client.users.fetch(process.env.ADMIN_DISCORD_ID);
+            
+            for (const row of newRows) {
+                let msg = '🚨 **New Pilot Form Response** 🚨\n\n';
+                for (let i = 0; i < headers.length; i++) {
+                    msg += '**' + headers[i] + '**: ' + (row[i] || 'N/A') + '\n';
+                }
+                
+                await user.send(msg.substring(0, 2000)).catch(err => console.error('[BOT] Failed to DM owner', err));
+            }
+            
+            lastProcessedRow = rows.length;
+        }
+    } catch (err) {
+        console.error('[BOT] Error polling Google Sheet:', err.message);
+    }
+}
 
 // The /link command definition
 const linkCommand = new SlashCommandBuilder()
@@ -102,15 +155,38 @@ const generateCommand = new SlashCommandBuilder()
             )
     );
 
+const pullResponsesCommand = new SlashCommandBuilder()
+    .setName('pull_responses')
+    .setDescription('Pull form responses from the database')
+    .setIntegrationTypes(ApplicationIntegrationType.GuildInstall, ApplicationIntegrationType.UserInstall)
+    .setContexts(InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel)
+    .addStringOption(option =>
+        option.setName('type')
+            .setDescription('Type of form to pull')
+            .setRequired(true)
+            .addChoices(
+                { name: 'Pilot', value: 'pilot' },
+                { name: 'GSMC', value: 'gsmc' }
+            )
+    )
+    .addBooleanOption(option =>
+        option.setName('newest')
+            .setDescription('Pull only the newest response')
+            .setRequired(true)
+    );
+
 client.once('ready', async () => {
     console.log(`[BOT] Logged in as ${client.user.tag}!`);
+
+    setInterval(pollPilotSheet, 30000);
+    pollPilotSheet();
 
     // Register slash commands (Global registration)
     try {
         const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_BOT_TOKEN);
         console.log('[BOT] Started refreshing application (/) commands.');
 
-        const commands = [linkCommand.toJSON(), searchCommand.toJSON(), generateCommand.toJSON()];
+        const commands = [linkCommand.toJSON(), searchCommand.toJSON(), generateCommand.toJSON(), pullResponsesCommand.toJSON()];
 
         // Ensure DISCORD_CLIENT_ID is provided, fallback to client.user.id
         const clientId = process.env.DISCORD_CLIENT_ID || client.user.id;
@@ -218,8 +294,19 @@ client.on('interactionCreate', async interaction => {
                     });
                     
                     const data = response.data;
-                    responseMsg += `👤 **${data.officer}** | Rank: ${data.rank || 'N/A'}\n`;
-                    responseMsg += `Status: ${data.status} | Sync: ${data.syncEnabled ? 'ENABLED' : 'DISABLED'}`;
+                    responseMsg += `**OFFICER:** ${data.officer}\n`;
+                    responseMsg += `**RB-ID:** ${data.robloxId}\n`;
+                    responseMsg += `**DS-LINK:** ${data.discordId !== 'Not Linked' ? '<@' + data.discordId + '> (' + data.discordId + ')' : 'Not Linked'}\n`;
+                    responseMsg += `**STATUS:** ${data.status}\n`;
+                    responseMsg += `**DESIGNATION:** ${data.rank || 'N/A'} [LVL ${data.rankId || 0}]\n`;
+                    responseMsg += `**NS-RANK:** ${data.nsRank || 'N/A'} [${data.nsStatus || 'Enlisted'}]\n`;
+
+                    if (data.subDivisions && data.subDivisions.length > 0) {
+                        responseMsg += `\n**SUB-DIVISION ASSIGNMENTS:**\n`;
+                        data.subDivisions.forEach(sub => {
+                            responseMsg += `- **${sub.name}**: ${sub.rank} [${sub.rankId}]\n`;
+                        });
+                    }
                 } catch (err) {
                     if (err.response && err.response.status === 404) {
                         responseMsg += `*Personnel not found in target unit or name typo.*`;
@@ -296,6 +383,98 @@ client.on('interactionCreate', async interaction => {
             } else {
                 await interaction.editReply({ content: '❌ Could not contact the server.' });
             }
+        }
+    } else if (interaction.commandName === 'pull_responses') {
+        const type = interaction.options.getString('type');
+        const newest = interaction.options.getBoolean('newest');
+
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+        try {
+            const response = await axios.get(`http://localhost:3000/api/v1/bot/forms?type=${type}&newest=${newest}`, {
+                headers: { 'Authorization': `Bearer ${process.env.INTERNAL_BOT_API_KEY}` }
+            });
+            const forms = response.data.forms;
+            if (!forms || forms.length === 0) {
+                return await interaction.editReply({ content: '❌ No responses found for that form type.' });
+            }
+
+            if (newest) {
+                const latest = forms[0];
+                const embed = new EmbedBuilder()
+                    .setTitle(`📄 Newest Response [${type.toUpperCase()}]`)
+                    .setColor('#00ff88')
+                    .setTimestamp(new Date(latest.submittedAt));
+                
+                let desc = '';
+                for (const [key, val] of Object.entries(latest.responses)) {
+                    desc += `**${key}**: ${val}\n`;
+                }
+                embed.setDescription(desc.substring(0, 4000));
+                
+                await interaction.editReply({ embeds: [embed] });
+            } else {
+                // Latest 10
+                let page = 0;
+                
+                const generateEmbed = (idx) => {
+                    const form = forms[idx];
+                    const embed = new EmbedBuilder()
+                        .setTitle(`📄 Response ${idx + 1}/${forms.length} [${type.toUpperCase()}]`)
+                        .setColor('#00aaff')
+                        .setTimestamp(new Date(form.submittedAt));
+                    
+                    let desc = '';
+                    for (const [key, val] of Object.entries(form.responses)) {
+                        desc += `**${key}**: ${val}\n`;
+                    }
+                    embed.setDescription(desc.substring(0, 4000));
+                    return embed;
+                };
+
+                const generateButtons = (idx) => {
+                    const row = new ActionRowBuilder()
+                        .addComponents(
+                            new ButtonBuilder()
+                                .setCustomId('prev_form')
+                                .setLabel('Previous')
+                                .setStyle(ButtonStyle.Primary)
+                                .setDisabled(idx === 0),
+                            new ButtonBuilder()
+                                .setCustomId('next_form')
+                                .setLabel('Next')
+                                .setStyle(ButtonStyle.Primary)
+                                .setDisabled(idx === forms.length - 1)
+                        );
+                    return row;
+                };
+
+                const message = await interaction.editReply({
+                    embeds: [generateEmbed(page)],
+                    components: [generateButtons(page)]
+                });
+
+                const collector = message.createMessageComponentCollector({ time: 60000 * 5 }); // 5 minutes
+
+                collector.on('collect', async i => {
+                    if (i.customId === 'prev_form') {
+                        page = Math.max(0, page - 1);
+                    } else if (i.customId === 'next_form') {
+                        page = Math.min(forms.length - 1, page + 1);
+                    }
+                    
+                    await i.update({
+                        embeds: [generateEmbed(page)],
+                        components: [generateButtons(page)]
+                    });
+                });
+
+                collector.on('end', async () => {
+                    await interaction.editReply({ components: [] }).catch(() => {});
+                });
+            }
+        } catch (error) {
+            console.error('[BOT] API Error during /pull_responses:', error?.response?.data || error.message);
+            await interaction.editReply({ content: '❌ An error occurred while pulling responses.' });
         }
     }
 });

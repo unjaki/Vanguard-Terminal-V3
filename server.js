@@ -44,6 +44,7 @@ const User = require(path.join(__dirname, 'models', 'User.js'));
 const Division = require(path.join(__dirname, 'models', 'divisions.js'));
 const IntelCache = require(path.join(__dirname, 'models', 'IntelCache.js'));
 const AdminToken = require(path.join(__dirname, 'models', 'AdminToken.js'));
+const FormResponse = require(path.join(__dirname, 'models', 'FormResponse.js'));
 
 const ROBLOX_FALLBACK_IMAGE = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNTAiIGhlaWdodD0iMTUwIiB2aWV3Qm94PSIwIDAgMjQgMjQiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzU1NTU1NSIgc3Ryb2tlLXdpZHRoPSIxLjUiPjxyZWN0IHdpZHRoPSIyNCIgaGVpZHRoPSIyNCIgcng9IjIiIGZpbGw9IiMwZDBkMGQiLz48cGF0aCBkPSJNMTggMjFhNiA2IDAgMCAwLTEyIDAiLz48Y2lyY2xlIGN4PSIxMiIgY3k9IjEwIiByPSI0Ii8+PC9zdmc+";
 
@@ -1213,6 +1214,85 @@ app.get('/api/outfit-details/:outfitId', protectTier(2), async (req, res) => {
 app.post('/bulk-outfits', protectTier(2), async (req, res) => {
     // Keeping for backward compatibility but client will now use /outfits/:username in a loop for progress bars
     res.status(410).json({ message: "Route deprecated. Use sequential uplink for progress tracking." });
+});
+
+// Form Webhook Endpoint
+app.post('/api/v1/webhook/forms', async (req, res) => {
+    try {
+        const { formType, responses } = req.body;
+        if (!formType || !responses) {
+            return res.status(400).json({ error: 'Missing formType or responses' });
+        }
+        
+        const newForm = new FormResponse({
+            formType: formType.toLowerCase(),
+            responses
+        });
+        await newForm.save();
+        
+        if (process.env.ADMIN_DISCORD_ID && process.env.DISCORD_BOT_TOKEN) {
+            try {
+                const dmRes = await axios.post('https://discord.com/api/v10/users/@me/channels', 
+                    { recipient_id: process.env.ADMIN_DISCORD_ID }, 
+                    { headers: { Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}` } }
+                );
+                const channelId = dmRes.data.id;
+                
+                let desc = '';
+                for (const [key, val] of Object.entries(responses)) {
+                    desc += `**${key}**: ${val}\n`;
+                }
+
+                await axios.post(`https://discord.com/api/v10/channels/${channelId}/messages`, 
+                    {
+                        embeds: [{
+                            title: `📄 New Form Submitted [${formType.toUpperCase()}]`,
+                            description: desc.substring(0, 4000),
+                            color: 0x00ff88,
+                            timestamp: new Date().toISOString()
+                        }]
+                    },
+                    { headers: { Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}` } }
+                );
+            } catch (dmErr) {
+                console.error('[DISCORD DM ERROR]', dmErr?.response?.data || dmErr.message);
+            }
+        }
+
+        res.status(201).json({ success: true, message: 'Form submitted successfully.' });
+    } catch (err) {
+        console.error('[FORM WEBHOOK ERROR]', err);
+        res.status(500).json({ error: 'Internal server error processing form.' });
+    }
+});
+
+// Bot Pull Responses Route
+app.get('/api/v1/bot/forms', async (req, res) => {
+    const authHeader = req.header('Authorization');
+    if (!authHeader || authHeader !== `Bearer ${process.env.INTERNAL_BOT_API_KEY}`) {
+        return res.status(401).json({ error: 'Unauthorized: Invalid internal API key.' });
+    }
+
+    const { type, newest } = req.query;
+    
+    if (!type) return res.status(400).json({ error: 'Missing form type.' });
+
+    try {
+        const isNewest = newest === 'true';
+        let query = FormResponse.find({ formType: type.toLowerCase() }).sort({ submittedAt: -1 });
+        
+        if (isNewest) {
+            query = query.limit(1);
+        } else {
+            query = query.limit(10);
+        }
+
+        const forms = await query.exec();
+        return res.json({ success: true, forms });
+    } catch (err) {
+        console.error('[BOT FORM PULL ERROR]', err);
+        res.status(500).json({ error: 'Internal server error pulling forms.' });
+    }
 });
 
 // Create User (Register)

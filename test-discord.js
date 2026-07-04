@@ -97,11 +97,31 @@ const generateCommand = new SlashCommandBuilder()
             )
     );
 
+const pullResponsesCommand = new SlashCommandBuilder()
+    .setName('pull_responses')
+    .setDescription('Pull form responses from the database')
+    .setIntegrationTypes(ApplicationIntegrationType.GuildInstall, ApplicationIntegrationType.UserInstall)
+    .setContexts(InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel)
+    .addStringOption(option =>
+        option.setName('type')
+            .setDescription('Type of form to pull')
+            .setRequired(true)
+            .addChoices(
+                { name: 'Pilot', value: 'pilot' },
+                { name: 'GSMC', value: 'gsmc' }
+            )
+    )
+    .addBooleanOption(option =>
+        option.setName('newest')
+            .setDescription('Pull only the newest response')
+            .setRequired(true)
+    );
+
 async function test() {
     try {
         const res = await axios.put(
             `https://discord.com/api/v10/applications/${process.env.DISCORD_CLIENT_ID}/commands`,
-            [linkCommand.toJSON(), searchCommand.toJSON(), generateCommand.toJSON()],
+            [linkCommand.toJSON(), searchCommand.toJSON(), generateCommand.toJSON(), pullResponsesCommand.toJSON()],
             { headers: { Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}` } }
         );
         console.log("Success!");
